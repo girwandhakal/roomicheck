@@ -1,0 +1,171 @@
+{
+  "questionnaire_id": "roomicheck_scenario_seed_v1",
+  "version": "v1",
+  "title": "RoomiCheck Scenario-Based Seed Questionnaire",
+  "questions": [
+    {
+      "id": "scenario_01",
+      "version": "v1",
+      "prompt": "It's the middle of a stressful midterm week. Realistically, what does your side of the room look like, and how do you manage shared chores?",
+      "response_kind": "single_select",
+      "options": [
+        {
+          "id": "strict_clean",
+          "label": "I always prioritize keeping things neat, even when stressed. I expect shared chores to be done on schedule."
+        },
+        {
+          "id": "personal_clutter",
+          "label": "I might leave clothes on my chair or books on my desk, but I never let trash or food pile up."
+        },
+        {
+          "id": "respect_shared",
+          "label": "My personal space gets pretty messy, but I try to keep the shared areas clear out of respect."
+        },
+        {
+          "id": "weekend_cleaner",
+          "label": "I don't really notice clutter when I'm busy. Chores can wait until the weekend when I have time."
+        },
+        {
+          "id": "unbothered",
+          "label": "I'm totally unbothered by mess. We can clean whenever it gets unbearable."
+        }
+      ],
+      "target_dimensions": [
+        "living_and_cleanliness"
+      ],
+      "required": true
+    },
+    {
+      "id": "scenario_02",
+      "version": "v1",
+      "prompt": "You need to sleep early for an important 8 AM class, but your roommate is a night owl who studies late with the desk light on. How do you want to handle this?",
+      "response_kind": "single_select",
+      "options": [
+        {
+          "id": "strict_quiet",
+          "label": "I need total darkness and silence to sleep. We'd need to agree on strict quiet hours and they should study elsewhere."
+        },
+        {
+          "id": "compromise",
+          "label": "I can use a sleep mask or earplugs, but I'd ask them to keep the noise to a minimum."
+        },
+        {
+          "id": "heavy_sleeper",
+          "label": "I'm a heavy sleeper, so as long as they aren't having a loud conversation or blasting music, I don't mind."
+        },
+        {
+          "id": "night_owl",
+          "label": "I'm usually up late too, so it's rarely an issue. If it happens, I'd just ask them to turn off the main light."
+        },
+        {
+          "id": "day_by_day",
+          "label": "I'd rather we just communicate on a day-to-day basis depending on what we both have going on."
+        }
+      ],
+      "target_dimensions": [
+        "studying_and_sleep_habits",
+        "communication_and_conflict_handling"
+      ],
+      "required": true
+    },
+    {
+      "id": "scenario_03",
+      "version": "v1",
+      "prompt": "You're relaxing in the room on a Saturday afternoon, and your roommate brings two friends over to hang out without any prior warning. How do you react?",
+      "response_kind": "single_select",
+      "options": [
+        {
+          "id": "strict_notice",
+          "label": "I'd be very frustrated. I expect advance notice and agreement before anyone comes into our shared space."
+        },
+        {
+          "id": "avoidance",
+          "label": "I might be slightly annoyed, but I'd put on headphones or leave to find a quieter spot."
+        },
+        {
+          "id": "casual",
+          "label": "I don't mind occasional unannounced guests during the day, as long as it's not during study time or late at night."
+        },
+        {
+          "id": "social",
+          "label": "I love having people around! I'd probably stop what I'm doing and join the conversation."
+        },
+        {
+          "id": "mood_dependent",
+          "label": "It depends entirely on my mood that day; sometimes I'm fine with it, sometimes I need my space."
+        }
+      ],
+      "target_dimensions": [
+        "socializing_and_guests",
+        "sharing_space_and_boundaries"
+      ],
+      "required": true
+    },
+    {
+      "id": "scenario_04",
+      "version": "v1",
+      "prompt": "You notice your roommate has been consistently using your expensive laundry detergent without asking. How do you address this?",
+      "response_kind": "single_select",
+      "options": [
+        {
+          "id": "immediate_text",
+          "label": "I would immediately text them or leave a note asking them to stop using my things."
+        },
+        {
+          "id": "direct_talk",
+          "label": "I would wait until we are both in the room and calmly tell them they need to buy their own detergent."
+        },
+        {
+          "id": "casual_hint",
+          "label": "I would casually bring it up next time we're doing laundry together so it doesn't feel like a confrontation."
+        },
+        {
+          "id": "passive",
+          "label": "I probably wouldn't say anything to avoid awkwardness, but I'd start hiding the detergent."
+        },
+        {
+          "id": "share_everything",
+          "label": "I don't mind sharing at all! They can use whatever they need."
+        }
+      ],
+      "target_dimensions": [
+        "communication_and_conflict_handling",
+        "sharing_space_and_boundaries"
+      ],
+      "required": true
+    },
+    {
+      "id": "scenario_05",
+      "version": "v1",
+      "prompt": "Your roommate wants their friend from another college to sleep on your floor for the entire weekend. How do you feel about overnight guests?",
+      "response_kind": "single_select",
+      "options": [
+        {
+          "id": "never",
+          "label": "I am strictly against having overnight guests in the room, regardless of the situation."
+        },
+        {
+          "id": "rare_with_notice",
+          "label": "I'm only okay with it if it's a rare occasion and we discussed it at least a week in advance."
+        },
+        {
+          "id": "casual_notice",
+          "label": "I'm fine with it for a night or two, as long as they let me know a day beforehand."
+        },
+        {
+          "id": "relaxed",
+          "label": "I'm very relaxed about it. They can have friends stay over whenever, as long as I have my bed."
+        },
+        {
+          "id": "host_together",
+          "label": "I'd prefer if we host guests together and make it a fun weekend for all of us."
+        }
+      ],
+      "target_dimensions": [
+        "sharing_space_and_boundaries",
+        "socializing_and_guests"
+      ],
+      "required": true
+    }
+  ]
+}
