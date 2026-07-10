@@ -1,0 +1,48 @@
+{
+  "version": "v2",
+  "profile_schema": "co_living_profile.v2",
+  "dimensions": [
+    {
+      "id": "noise_environment",
+      "label": "Noise and Environment",
+      "description": "General noise, quiet hours, focus and sleep sensitivity, lighting, and temperature preferences.",
+      "score_low": "Strongly controlled and quiet environment",
+      "score_high": "Highly tolerant and flexible environment"
+    },
+    {
+      "id": "social_interaction",
+      "label": "Social Interaction",
+      "description": "Roommate relationship, shared activities, privacy, alone time, and comfort with visitors.",
+      "score_low": "Mostly independent and private",
+      "score_high": "Highly social and shared"
+    },
+    {
+      "id": "study_daily_routine",
+      "label": "Study, Work, and Daily Routine",
+      "description": "Study or work intensity, sleep schedule, focus needs, and weekday or weekend routines.",
+      "score_low": "Flexible and unstructured routine",
+      "score_high": "Highly structured and routine-dependent"
+    },
+    {
+      "id": "cultural_openness",
+      "label": "Cultural Openness and Inclusion",
+      "description": "Comfort with different foods, languages, traditions, routines, and cultural misunderstandings.",
+      "score_low": "Prefers familiar routines",
+      "score_high": "Highly open to different routines and backgrounds"
+    },
+    {
+      "id": "household_structure",
+      "label": "Household Structure and Shared Responsibilities",
+      "description": "Cleanliness, chores, shared supplies, food, guests, common areas, and household agreements.",
+      "score_low": "Informal and flexible household agreements",
+      "score_high": "Highly structured and rule-oriented household agreements"
+    },
+    {
+      "id": "communication_conflict",
+      "label": "Flexibility, Communication, and Conflict",
+      "description": "Compromise, communication style, problem timing, repeated mistakes, and routine adaptation.",
+      "score_low": "Indirect or cool-down-oriented communication",
+      "score_high": "Direct and immediate communication"
+    }
+  ]
+}

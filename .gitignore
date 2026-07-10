@@ -31,3 +31,11 @@ docs/
 # Local assessment output
 data/
 
+# Local agent/skill installations and package-manager caches
+.agents/
+skills-lock.json
+.npm-cache/
+
+# JavaScript dependencies and Next.js build output
+node_modules/
+.next/

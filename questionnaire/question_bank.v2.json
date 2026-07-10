@@ -1,0 +1,246 @@
+{
+  "questionnaire_version": "adaptive_demo.v2",
+  "questions": [
+    {
+      "id": "seed_open_ideal_coliving",
+      "version": "v2",
+      "prompt": "Tell us about your ideal co-living experience. How do you like to live with roommates? Mention anything that matters to you.",
+      "question_type": "free_text",
+      "primary_dimension": null,
+      "secondary_dimensions": [],
+      "options": [],
+      "scale_min": null,
+      "scale_max": null,
+      "is_seed": true,
+      "active": true
+    },
+    {
+      "id": "noise_focus_preference",
+      "version": "v2",
+      "prompt": "You're trying to finish an important assignment when your roommate starts watching videos out loud. What would that be like for you?",
+      "question_type": "single_choice",
+      "primary_dimension": "noise_environment",
+      "secondary_dimensions": ["study_daily_routine"],
+      "options": [
+        {"id": "quiet", "label": "I'd be distracted until the room was quiet."},
+        {"id": "headphones", "label": "I'd be fine if they switched to headphones."},
+        {"id": "background", "label": "That kind of background noise usually doesn't bother me."},
+        {"id": "elsewhere", "label": "I'd rather head somewhere else to focus."},
+        {"id": "other", "label": "Something else (tell us what it would be like)."}
+      ],
+      "scale_min": null,
+      "scale_max": null,
+      "is_seed": false,
+      "active": true
+    },
+    {
+      "id": "noise_sleep_preference",
+      "version": "v2",
+      "prompt": "It's the night before an early class, and your roommate is still moving around and getting ready for bed. How does that sit with you?",
+      "question_type": "single_choice",
+      "primary_dimension": "noise_environment",
+      "secondary_dimensions": [],
+      "options": [
+        {"id": "silent", "label": "I'd have a hard time settling down unless it was very quiet."},
+        {"id": "low", "label": "A little occasional noise would be okay."},
+        {"id": "moderate", "label": "Normal room noise wouldn't keep me up."},
+        {"id": "flexible", "label": "It really depends on the day."},
+        {"id": "other", "label": "Something else (tell us what it would be like)."}
+      ],
+      "scale_min": null,
+      "scale_max": null,
+      "is_seed": false,
+      "active": true
+    },
+    {
+      "id": "social_relationship_preference",
+      "version": "v2",
+      "prompt": "You and your roommate both have a free evening at home. What kind of roommate dynamic feels right to you?",
+      "question_type": "single_choice",
+      "primary_dimension": "social_interaction",
+      "secondary_dimensions": [],
+      "options": [
+        {"id": "close_friends", "label": "I'd love for us to hang out regularly, like friends."},
+        {"id": "friendly_social", "label": "Friendly and social sometimes is the sweet spot for me."},
+        {"id": "mostly_independent", "label": "I'm most comfortable when we're respectful but do our own thing."},
+        {"id": "no_preference", "label": "I could be comfortable with any of these."},
+        {"id": "other", "label": "Something else (tell us what it would be like)."}
+      ],
+      "scale_min": null,
+      "scale_max": null,
+      "is_seed": false,
+      "active": true
+    },
+    {
+      "id": "social_alone_time",
+      "version": "v2",
+      "prompt": "After a long day of classes, you get back to your shared room. How much space to yourself helps you recharge?",
+      "question_type": "single_choice",
+      "primary_dimension": "social_interaction",
+      "secondary_dimensions": [],
+      "options": [
+        {"id": "very_little", "label": "Being around someone would probably energize me."},
+        {"id": "some", "label": "A mix of shared time and solo time keeps me balanced."},
+        {"id": "regular", "label": "I need regular, uninterrupted time alone to reset."},
+        {"id": "mostly_private", "label": "I feel best when home is mostly private time."},
+        {"id": "other", "label": "Something else (tell us what it would be like)."}
+      ],
+      "scale_min": null,
+      "scale_max": null,
+      "is_seed": false,
+      "active": true
+    },
+    {
+      "id": "routine_weekday",
+      "version": "v2",
+      "prompt": "Your roommate's weekday schedule is pretty different from yours. Which routine would be easiest for you to live alongside?",
+      "question_type": "single_choice",
+      "primary_dimension": "study_daily_routine",
+      "secondary_dimensions": ["noise_environment"],
+      "options": [
+        {"id": "early", "label": "Early nights and early mornings work best for me."},
+        {"id": "standard", "label": "A mostly daytime schedule feels natural to me."},
+        {"id": "late", "label": "I'm more at ease with late nights and late mornings."},
+        {"id": "variable", "label": "I'm okay when schedules change a lot."},
+        {"id": "other", "label": "Something else (tell us what it would be like)."}
+      ],
+      "scale_min": null,
+      "scale_max": null,
+      "is_seed": false,
+      "active": true
+    },
+    {
+      "id": "routine_conflict",
+      "version": "v2",
+      "prompt": "Your roommate needs to be up late during a week when you have early mornings. What kind of solution would leave you feeling okay?",
+      "question_type": "single_choice",
+      "primary_dimension": "study_daily_routine",
+      "secondary_dimensions": ["communication_conflict"],
+      "options": [
+        {"id": "protect_quiet", "label": "Clear quiet hours would take the stress off me."},
+        {"id": "adjust", "label": "I'd feel supported if we both made small adjustments."},
+        {"id": "separate_spaces", "label": "I'd be most comfortable using separate spaces when we can."},
+        {"id": "case_by_case", "label": "I'm okay figuring it out as each situation comes up."},
+        {"id": "other", "label": "Something else (tell us what it would be like)."}
+      ],
+      "scale_min": null,
+      "scale_max": null,
+      "is_seed": false,
+      "active": true
+    },
+    {
+      "id": "culture_different_routines",
+      "version": "v2",
+      "prompt": "Your roommate has traditions or daily routines that are new to you. What's your honest first reaction?",
+      "question_type": "single_choice",
+      "primary_dimension": "cultural_openness",
+      "secondary_dimensions": [],
+      "options": [
+        {"id": "curious", "label": "I'd be curious and interested in learning more."},
+        {"id": "respectful", "label": "I'd respect it, even if we mostly kept our routines separate."},
+        {"id": "agreements", "label": "I'd be more at ease with clear ground rules for shared space."},
+        {"id": "unsure", "label": "I'd need a little time to understand what works for both of us."},
+        {"id": "other", "label": "Something else (tell us what it would be like)."}
+      ],
+      "scale_min": null,
+      "scale_max": null,
+      "is_seed": false,
+      "active": true
+    },
+    {
+      "id": "culture_misunderstanding",
+      "version": "v2",
+      "prompt": "A difference in routines turns into a misunderstanding between you and your roommate. What would help you feel comfortable moving forward?",
+      "question_type": "single_choice",
+      "primary_dimension": "cultural_openness",
+      "secondary_dimensions": ["communication_conflict"],
+      "options": [
+        {"id": "talk", "label": "Talking it through openly would reassure me."},
+        {"id": "pause", "label": "I'd rather cool off first, then talk."},
+        {"id": "agreement", "label": "Going back to a shared agreement would make me feel more secure."},
+        {"id": "mediation", "label": "I'd feel supported with a neutral person helping us talk."},
+        {"id": "other", "label": "Something else (tell us what it would be like)."}
+      ],
+      "scale_min": null,
+      "scale_max": null,
+      "is_seed": false,
+      "active": true
+    },
+    {
+      "id": "household_agreement_style",
+      "version": "v2",
+      "prompt": "The sink is full, the trash needs to go out, and both of you are busy. What kind of chore setup would make home feel manageable?",
+      "question_type": "single_choice",
+      "primary_dimension": "household_structure",
+      "secondary_dimensions": [],
+      "options": [
+        {"id": "schedule", "label": "A regular schedule would help me relax."},
+        {"id": "divide", "label": "I'd feel better knowing exactly what each person handles."},
+        {"id": "informal", "label": "I'm comfortable taking care of things as they come up."},
+        {"id": "flexible", "label": "I'd rather decide together and adjust when needed."},
+        {"id": "other", "label": "Something else (tell us what it would be like)."}
+      ],
+      "scale_min": null,
+      "scale_max": null,
+      "is_seed": false,
+      "active": true
+    },
+    {
+      "id": "household_sharing",
+      "version": "v2",
+      "prompt": "Your roommate asks to use some detergent, snacks, and other supplies you bought. What kind of sharing arrangement feels comfortable?",
+      "question_type": "single_choice",
+      "primary_dimension": "household_structure",
+      "secondary_dimensions": [],
+      "options": [
+        {"id": "separate", "label": "I feel best keeping most of my things separate."},
+        {"id": "agreed_items", "label": "I'm happy to share the things we've agreed on."},
+        {"id": "mostly_shared", "label": "Sharing most everyday supplies feels easy to me."},
+        {"id": "case_by_case", "label": "I'd rather decide based on the item."},
+        {"id": "other", "label": "Something else (tell us what it would be like)."}
+      ],
+      "scale_min": null,
+      "scale_max": null,
+      "is_seed": false,
+      "active": true
+    },
+    {
+      "id": "conflict_kitchen",
+      "version": "v2",
+      "prompt": "You've cleaned the shared kitchen a few times, and your roommate keeps leaving it messy. How would you want to deal with that?",
+      "question_type": "single_choice",
+      "primary_dimension": "communication_conflict",
+      "secondary_dimensions": ["household_structure"],
+      "options": [
+        {"id": "direct_now", "label": "I'd feel better bringing it up directly soon."},
+        {"id": "cool_off", "label": "I'd want a little time to cool off before talking."},
+        {"id": "message", "label": "A message first would feel less uncomfortable for me."},
+        {"id": "meeting", "label": "I'd feel better setting aside time to work out a solution."},
+        {"id": "other", "label": "Something else (tell us what it would be like)."}
+      ],
+      "scale_min": null,
+      "scale_max": null,
+      "is_seed": false,
+      "active": true
+    },
+    {
+      "id": "conflict_timing_preference",
+      "version": "v2",
+      "prompt": "A small roommate issue comes up right before you both leave for class. When would you feel best talking about it?",
+      "question_type": "single_choice",
+      "primary_dimension": "communication_conflict",
+      "secondary_dimensions": [],
+      "options": [
+        {"id": "immediate", "label": "I'd rather clear the air before we leave."},
+        {"id": "same_day", "label": "Later that day would give me time to think."},
+        {"id": "scheduled", "label": "I'd feel more ready if we picked a time to talk."},
+        {"id": "depends", "label": "It depends on how serious the issue is."},
+        {"id": "other", "label": "Something else (tell us what it would be like)."}
+      ],
+      "scale_min": null,
+      "scale_max": null,
+      "is_seed": false,
+      "active": true
+    }
+  ]
+}

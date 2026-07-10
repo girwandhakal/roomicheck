@@ -1,11 +1,16 @@
 import unittest
 
 from roomicheck.ai_provider import GeminiProvider, ResilientAI
-from roomicheck.config import DIMENSIONS
+from roomicheck.config import DIMENSIONS, load_questions
 from roomicheck.questionnaire import DemoAnswerSource, QuestionnaireEngine
 
 
 class QuestionnaireIntegrationTests(unittest.TestCase):
+    def test_seed_questions_are_single_select_scenarios(self) -> None:
+        for question in load_questions():
+            self.assertEqual(question["response_kind"], "single_select")
+            self.assertGreaterEqual(len(question["options"]), 2)
+
     def test_offline_demo_completes_with_a_valid_profile(self) -> None:
         ai = ResilientAI(primary=GeminiProvider(api_key=""))
         engine = QuestionnaireEngine(ai=ai)
