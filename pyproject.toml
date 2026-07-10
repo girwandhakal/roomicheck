@@ -5,3 +5,6 @@ description = "CLI-first prototype for RoomiCheck questionnaire and provider ver
 requires-python = ">=3.11,<3.12"
 dependencies = []
 
+[project.scripts]
+roomicheck = "roomicheck.cli:main"
+

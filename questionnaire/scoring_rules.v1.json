@@ -1,0 +1,83 @@
+{
+  "scoring_version": "v1",
+  "dimensions": {
+    "living_and_cleanliness": {
+      "label": "Living & Cleanliness",
+      "scale": {
+        "1": "Very relaxed about clutter and chore timing",
+        "3": "Keeps shared areas usable with moderate flexibility",
+        "5": "Highly structured about cleanliness and chore schedules"
+      }
+    },
+    "studying_and_sleep_habits": {
+      "label": "Studying & Sleep Habits",
+      "scale": {
+        "1": "Flexible about late activity, light, and everyday variation",
+        "3": "Prefers situational coordination and moderate accommodation",
+        "5": "Needs predictable quiet, darkness, and protected routines"
+      }
+    },
+    "socializing_and_guests": {
+      "label": "Socializing & Guests",
+      "scale": {
+        "1": "Strongly prefers a private, low-guest room",
+        "3": "Accepts occasional guests with reasonable limits",
+        "5": "Enjoys a highly social room and frequent guests"
+      }
+    },
+    "sharing_space_and_boundaries": {
+      "label": "Sharing Space & Boundaries",
+      "scale": {
+        "1": "Very open to sharing items and space informally",
+        "3": "Comfortable sharing with ordinary notice and limits",
+        "5": "Needs explicit permission and firm personal boundaries"
+      }
+    },
+    "communication_and_conflict_handling": {
+      "label": "Communication & Conflict",
+      "scale": {
+        "1": "Usually avoids or delays direct conflict conversations",
+        "3": "Prefers gentle or situational communication",
+        "5": "Addresses concerns promptly, calmly, and directly"
+      }
+    }
+  },
+  "options": {
+    "scenario_01": {
+      "strict_clean": {"living_and_cleanliness": 5},
+      "personal_clutter": {"living_and_cleanliness": 4},
+      "respect_shared": {"living_and_cleanliness": 3},
+      "weekend_cleaner": {"living_and_cleanliness": 2},
+      "unbothered": {"living_and_cleanliness": 1}
+    },
+    "scenario_02": {
+      "strict_quiet": {"studying_and_sleep_habits": 5, "communication_and_conflict_handling": 4},
+      "compromise": {"studying_and_sleep_habits": 4, "communication_and_conflict_handling": 4},
+      "heavy_sleeper": {"studying_and_sleep_habits": 2, "communication_and_conflict_handling": 3},
+      "night_owl": {"studying_and_sleep_habits": 1, "communication_and_conflict_handling": 3},
+      "day_by_day": {"studying_and_sleep_habits": 3, "communication_and_conflict_handling": 4}
+    },
+    "scenario_03": {
+      "strict_notice": {"socializing_and_guests": 1, "sharing_space_and_boundaries": 5},
+      "avoidance": {"socializing_and_guests": 2, "sharing_space_and_boundaries": 3},
+      "casual": {"socializing_and_guests": 3, "sharing_space_and_boundaries": 2},
+      "social": {"socializing_and_guests": 5, "sharing_space_and_boundaries": 1},
+      "mood_dependent": {"socializing_and_guests": 3, "sharing_space_and_boundaries": 4}
+    },
+    "scenario_04": {
+      "immediate_text": {"communication_and_conflict_handling": 4, "sharing_space_and_boundaries": 5},
+      "direct_talk": {"communication_and_conflict_handling": 5, "sharing_space_and_boundaries": 4},
+      "casual_hint": {"communication_and_conflict_handling": 3, "sharing_space_and_boundaries": 3},
+      "passive": {"communication_and_conflict_handling": 1, "sharing_space_and_boundaries": 5},
+      "share_everything": {"communication_and_conflict_handling": 2, "sharing_space_and_boundaries": 1}
+    },
+    "scenario_05": {
+      "never": {"sharing_space_and_boundaries": 5, "socializing_and_guests": 1},
+      "rare_with_notice": {"sharing_space_and_boundaries": 4, "socializing_and_guests": 2},
+      "casual_notice": {"sharing_space_and_boundaries": 3, "socializing_and_guests": 3},
+      "relaxed": {"sharing_space_and_boundaries": 1, "socializing_and_guests": 5},
+      "host_together": {"sharing_space_and_boundaries": 2, "socializing_and_guests": 5}
+    }
+  }
+}
+

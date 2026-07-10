@@ -9,4 +9,6 @@ from roomicheck.cli import main
 
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    arguments = ["--demo", *sys.argv[1:]]
+    raise SystemExit(main(arguments))
+

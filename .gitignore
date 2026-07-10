@@ -26,4 +26,8 @@ Thumbs.db
 .idea/
 
 
-docs/*
+docs/
+
+# Local assessment output
+data/
+

@@ -1,0 +1,41 @@
+{
+  "version": "v1",
+  "questions": {
+    "scenario_01": {
+      "default": "What condition do shared areas need to stay in for you to feel comfortable?",
+      "options": {
+        "strict_clean": "How quickly would you want to discuss a missed shared chore?",
+        "unbothered": "Is there any kind of mess that would cross a firm boundary for you?"
+      }
+    },
+    "scenario_02": {
+      "default": "What quiet-hours agreement would feel realistic during a normal school week?",
+      "options": {
+        "strict_quiet": "How much advance notice would help when your roommate needs a late study night?",
+        "night_owl": "What accommodations would you make for a roommate who sleeps earlier than you?"
+      }
+    },
+    "scenario_03": {
+      "default": "What amount of notice would you expect before guests use the room?",
+      "options": {
+        "social": "When would having friends in the room become disruptive even for you?",
+        "mood_dependent": "How would you communicate that you need private time on a particular day?"
+      }
+    },
+    "scenario_04": {
+      "default": "How would you want a roommate to raise a similar boundary with you?",
+      "options": {
+        "passive": "What would make a direct conversation feel manageable instead of awkward?",
+        "share_everything": "Are there any belongings you would still expect a roommate to ask before using?"
+      }
+    },
+    "scenario_05": {
+      "default": "What specific overnight-guest rule would you want both roommates to follow?",
+      "options": {
+        "never": "Would any emergency or exceptional circumstance change that boundary?",
+        "relaxed": "How frequently could overnight guests stay before it affected your comfort?"
+      }
+    }
+  }
+}
+
