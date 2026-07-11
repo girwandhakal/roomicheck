@@ -15,6 +15,10 @@ class Settings(BaseSettings):
     database_url: str = Field(min_length=1)
     cors_origins: str = "http://localhost:3000"
     environment: str = "development"
+    ai_mode: str = "fallback"
+    gemini_api_key: str = ""
+    gemini_model: str = "gemini-3.5-flash"
+    ai_timeout_seconds: float = 30.0
 
     model_config = SettingsConfigDict(
         env_file=(ROOT_DIR / ".env.local", ROOT_DIR / ".env"),

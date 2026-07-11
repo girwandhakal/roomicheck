@@ -73,3 +73,14 @@ export function submitAnswer(
 export function restartSession(sessionId: string): Promise<QuestionnaireSession> {
   return request(`/questionnaire-sessions/${sessionId}/restart`, { method: "POST", body: "{}" });
 }
+
+export function retrySession(sessionId: string): Promise<QuestionnaireSession> {
+  return request(`/questionnaire-sessions/${sessionId}/retry`, { method: "POST", body: "{}" });
+}
+
+export async function recordQuestionDeployed(sessionId: string, questionId: string): Promise<void> {
+  await request(`/questionnaire-sessions/${sessionId}/question-deployed`, {
+    method: "POST",
+    body: JSON.stringify({ session_question_id: questionId }),
+  });
+}

@@ -72,6 +72,10 @@ class AnswerSubmission(StrictModel):
     answer: AnswerValue
 
 
+class QuestionDeployedSubmission(StrictModel):
+    session_question_id: UUID
+
+
 class HealthOut(StrictModel):
     status: Literal["ok", "degraded"]
     database: Literal["connected", "unavailable"]

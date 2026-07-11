@@ -10,10 +10,12 @@ from sqlalchemy import (
     DateTime,
     Float,
     ForeignKey,
+    Index,
     Integer,
     String,
     Text,
     UniqueConstraint,
+    text,
 )
 from sqlalchemy.dialects.postgresql import JSONB, UUID as PG_UUID
 from sqlalchemy.orm import Mapped, mapped_column
@@ -83,6 +85,12 @@ class SessionQuestion(Base):
     __tablename__ = "session_questions"
     __table_args__ = (
         UniqueConstraint("session_id", "question_order", name="uq_session_question_order"),
+        Index(
+            "uq_session_current_question",
+            "session_id",
+            unique=True,
+            postgresql_where=text("answered_at IS NULL"),
+        ),
     )
 
     id: Mapped[UUID] = mapped_column(PG_UUID(as_uuid=True), primary_key=True, default=uuid4)
@@ -192,6 +200,16 @@ class AIRun(Base):
 
 class AnalyticsEvent(Base):
     __tablename__ = "analytics_events"
+    __table_args__ = (
+        CheckConstraint(
+            "event_name IN ('questionnaire_opened', 'session_started', 'seed_started', "
+            "'seed_submitted', 'question_displayed', 'answer_submitted', 'answer_edited', "
+            "'back_clicked', 'session_abandoned', 'questionnaire_completed', "
+            "'final_profile_viewed', 'questionnaire_restarted', 'application_error_shown', "
+            "'question_deployed')",
+            name="ck_analytics_events_name",
+        ),
+    )
 
     id: Mapped[UUID] = mapped_column(PG_UUID(as_uuid=True), primary_key=True, default=uuid4)
     session_id: Mapped[UUID] = mapped_column(

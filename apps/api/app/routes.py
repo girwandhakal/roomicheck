@@ -6,13 +6,14 @@ from fastapi import APIRouter, HTTPException
 from sqlalchemy import text
 
 from .database import DatabaseSession
-from .schemas import AnswerSubmission, HealthOut, SessionOut
+from .schemas import AnswerSubmission, HealthOut, QuestionDeployedSubmission, SessionOut
 from .service import (
     create_session,
     get_public_session,
     restart_session,
     retry_session,
     submit_answer,
+    record_question_deployed,
 )
 
 
@@ -50,6 +51,15 @@ def answer_questionnaire(
 @router.post("/questionnaire-sessions/{session_id}/retry", response_model=SessionOut)
 def retry_questionnaire(session_id: UUID, db: DatabaseSession) -> SessionOut:
     return retry_session(db, session_id)
+
+
+@router.post("/questionnaire-sessions/{session_id}/question-deployed", status_code=204)
+def deploy_question_event(
+    session_id: UUID,
+    submission: QuestionDeployedSubmission,
+    db: DatabaseSession,
+) -> None:
+    record_question_deployed(db, session_id, submission.session_question_id)
 
 
 @router.post("/questionnaire-sessions/{session_id}/restart", response_model=SessionOut)

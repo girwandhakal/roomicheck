@@ -6,6 +6,8 @@ import {
   getSession,
   QuestionnaireSession,
   restartSession,
+  retrySession,
+  recordQuestionDeployed,
   startSession,
   submitAnswer,
 } from "@/lib/api";
@@ -30,6 +32,14 @@ export default function Home() {
       .catch(() => window.localStorage.removeItem(SESSION_KEY))
       .finally(() => setLoading(false));
   }, []);
+
+  useEffect(() => {
+    const sessionId = session?.session_id;
+    const question = session?.current_question;
+    const status = session?.status;
+    if (!sessionId || !question || status === "complete") return;
+    recordQuestionDeployed(sessionId, question.id).catch(() => undefined);
+  }, [session?.session_id, session?.current_question, session?.status]);
 
   async function begin() {
     setLoading(true);
@@ -57,6 +67,15 @@ export default function Home() {
     setLoading(true);
     setError(null);
     try {
+      // A failed processing attempt already persisted this answer. Retry the
+      // stored response instead of creating a second response for the same
+      // question (which the API correctly rejects with 409).
+      if (session.status === "needs_retry") {
+        setSession(await retrySession(session.session_id));
+        setAnswer("");
+        setOtherAnswer("");
+        return;
+      }
       setSession(await submitAnswer(session.session_id, question.id, value));
       setAnswer("");
       setOtherAnswer("");
@@ -122,6 +141,9 @@ export default function Home() {
         <div className="progress"><span style={{ width: `${Math.min(100, (session.progress.answered / session.progress.target_maximum) * 100)}%` }} /></div>
         <form onSubmit={submit}>
           <h1>{question?.text}</h1>
+          {session.status === "needs_retry" && (
+            <p role="status" className="note">We’re retrying your saved response. Your answer has not been lost.</p>
+          )}
           {question && ["free_text", "scenario"].includes(question.question_type) && (
             <textarea value={answer} onChange={(event) => setAnswer(event.target.value)} maxLength={4000} rows={7} autoFocus />
           )}
@@ -143,7 +165,7 @@ export default function Home() {
               )}
             </div>
           )}
-          <button type="submit" disabled={loading || !answer.trim() || (answer === "other" && !otherAnswer.trim())}>{loading ? "Saving…" : "Continue"}</button>
+          <button type="submit" disabled={loading || (session.status !== "needs_retry" && (!answer.trim() || (answer === "other" && !otherAnswer.trim())))}>{loading ? (session.status === "needs_retry" ? "Retrying…" : "Saving…") : session.status === "needs_retry" ? "Retry saved response" : "Continue"}</button>
           {error && <p role="alert" className="error">{error}</p>}
         </form>
       </section>

@@ -7,7 +7,7 @@ The current milestone generates a five-dimension co-living profile. It does not 
 ## What It Does
 
 - Uses five versioned scenarios covering cleanliness, sleep and study habits, guests, boundaries, and conflict communication.
-- Uses Gemini as the primary reasoning layer to interpret answers, decide when clarification is useful, generate follow-ups, and synthesize the final profile.
+- Treats Gemini as an adaptive interviewer: it interprets answers, extracts evidence-backed traits, and words targeted follow-ups; deterministic backend code owns scoring, coverage, and completion.
 - Returns structured 1-5 scores with confidence, evidence, preferences, explicit dealbreakers, and unresolved questions.
 - Redacts common identifiers and withholds sensitive-topic responses before any AI request.
 - Validates all AI dimensions, score ranges, confidence values, and output fields.
@@ -86,3 +86,18 @@ tests/                     Unit and end-to-end continuity tests
 ```
 
 The implementation plan is in `docs/specs/co-living-profile-generator.md`. The meeting demonstration script is in `docs/demo-rundown.md`.
+
+## Hybrid AI approach
+
+RoomiCheck does not use the model as its scoring engine. A seed answer is
+interpreted into a structured profile whose traits carry weights and confidence.
+The backend identifies missing or low-confidence fields, deterministically
+chooses the highest-priority information gap, and asks the model to select or
+adapt an appropriate next question for that gap.
+
+For free-text responses, the model applies defined rubrics and returns a
+bounded interpretation, such as a preference label, confidence, and supporting
+quote. Backend code validates that output, maps approved labels to numeric
+values, and updates the stored profile state with deterministic math. The
+canonical record is the structured profile and its evidence, not a raw chat
+transcript.
