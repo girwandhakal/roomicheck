@@ -179,6 +179,7 @@ def create_session(db: Session) -> SessionOut:
     profile = ProfileV2.empty(str(session.id))
     _present_question(db, session, question_bank.seed, profile, "required_seed")
     db.add(models.AnalyticsEvent(session_id=session.id, event_name="session_started"))
+    db.add(models.AnalyticsEvent(session_id=session.id, event_name="seed_started"))
     db.commit()
     return public_session(db, session)
 
@@ -443,7 +444,10 @@ def _process_response(
         missing_information_json={key: value.unknowns for key, value in profile.dimensions.items()},
     )
     db.add(snapshot)
-    db.add(models.AnalyticsEvent(session_id=session.id, event_name="answer_submitted"))
+    db.add(models.AnalyticsEvent(
+        session_id=session.id,
+        event_name="seed_submitted" if question.question_id == question_bank.seed.id else "answer_submitted",
+    ))
 
     if decision.complete:
         summary_input = {

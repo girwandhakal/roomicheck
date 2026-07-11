@@ -34,6 +34,15 @@ def test_synthetic_session_is_resumable_and_idempotent(api) -> None:
 
         assert api.get(f"/api/v1/questionnaire-sessions/{session_id}").status_code == 200
         question = session["current_question"]
+        deployed = api.post(
+            f"/api/v1/questionnaire-sessions/{session_id}/question-deployed",
+            json={"session_question_id": question["id"]},
+        )
+        assert deployed.status_code == 204
+        assert api.post(
+            f"/api/v1/questionnaire-sessions/{session_id}/question-deployed",
+            json={"session_question_id": question["id"]},
+        ).status_code == 204
         payload = {
             "session_question_id": question["id"],
             "idempotency_key": str(uuid4()),
@@ -49,6 +58,10 @@ def test_synthetic_session_is_resumable_and_idempotent(api) -> None:
 
         assert accepted.status_code == replay.status_code == 200
         assert accepted.json()["current_question"] == replay.json()["current_question"]
+        with SessionFactory() as database:
+            assert database.query(models.AnalyticsEvent).filter_by(
+                session_id=session_id, event_name="question_deployed"
+            ).count() == 1
     finally:
         with SessionFactory() as database:
             for session_id in session_ids:
@@ -198,6 +211,53 @@ def test_processing_failure_preserves_answer_for_retry(api, monkeypatch) -> None
             response = database.query(models.QuestionnaireResponse).filter_by(session_id=session_id).one()
             assert response.validation_status == "valid"
             assert database.query(models.ProfileSnapshot).filter_by(session_id=session_id).count() == 1
+    finally:
+        with SessionFactory() as database:
+            for session_id in session_ids:
+                session = database.get(models.QuestionnaireSession, session_id)
+                if session is not None:
+                    database.delete(session)
+            database.commit()
+
+
+def test_complete_synthetic_session_creates_one_snapshot_per_answer(api) -> None:
+    from app import models
+    from app.database import SessionFactory
+
+    session_ids: list[str] = []
+    try:
+        started = api.post("/api/v1/questionnaire-sessions")
+        assert started.status_code == 201
+        session_id = started.json()["session_id"]
+        session_ids.append(session_id)
+        current = started.json()
+
+        for _ in range(12):
+            question = current["current_question"]
+            assert question is not None
+            if question["question_type"] == "free_text":
+                answer = {"free_text": "I prefer a calm, respectful shared home.", "scale_value": None, "selected_option_id": None}
+            else:
+                answer = {"free_text": None, "scale_value": None, "selected_option_id": question["options"][0]["id"]}
+            response = api.post(
+                f"/api/v1/questionnaire-sessions/{session_id}/answers",
+                json={"session_question_id": question["id"], "idempotency_key": str(uuid4()), "answer": answer},
+            )
+            assert response.status_code == 200, response.text
+            current = response.json()
+            if current["status"] == "complete":
+                break
+
+        assert current["status"] == "complete"
+        assert current["progress"]["answered"] == 12
+        with SessionFactory() as database:
+            assert database.query(models.ProfileSnapshot).filter_by(session_id=session_id).count() == 12
+            assert database.query(models.QuestionnaireResponse).filter_by(session_id=session_id).count() == 12
+            events = {
+                event.event_name
+                for event in database.query(models.AnalyticsEvent).filter_by(session_id=session_id).all()
+            }
+            assert {"session_started", "seed_started", "seed_submitted", "questionnaire_completed"} <= events
     finally:
         with SessionFactory() as database:
             for session_id in session_ids:
