@@ -15,7 +15,9 @@ class Settings(BaseSettings):
     database_url: str = Field(min_length=1)
     cors_origins: str = "http://localhost:3000"
     environment: str = "development"
-    ai_mode: str = "fallback"
+    # Live AI is the normal product path. The service still falls back to the
+    # curated provider when no key is configured or a provider call fails.
+    ai_mode: str = "gemini"
     gemini_api_key: str = ""
     gemini_model: str = "gemini-3.5-flash"
     ai_timeout_seconds: float = 30.0

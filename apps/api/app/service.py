@@ -3,7 +3,7 @@ from __future__ import annotations
 import re
 from datetime import datetime, timezone
 from typing import Any
-from uuid import UUID
+from uuid import UUID, uuid4
 
 from fastapi import HTTPException
 from sqlalchemy import func, select
@@ -20,6 +20,7 @@ from roomicheck.v2.models import (
     EvidenceReference,
     ProfileStatus,
     ProfileV2,
+    Contradiction,
 )
 from roomicheck.v2.questions import QuestionDefinition, load_question_bank
 
@@ -31,8 +32,10 @@ from .ai import (
     GeminiAdaptiveProvider,
     ProviderError,
     allowed_dimensions,
+    validate_summary,
 )
 from .config import get_settings
+from .prompts import ADAPT_PROMPT_VERSION, EXTRACT_PROMPT_VERSION, SUMMARY_PROMPT_VERSION
 from .schemas import AnswerSubmission, ProgressOut, QuestionOut, SessionOut
 
 
@@ -173,6 +176,8 @@ def create_session(db: Session) -> SessionOut:
     session = models.QuestionnaireSession(
         questionnaire_version=QUESTIONNAIRE_VERSION,
         profile_schema_version=PROFILE_SCHEMA_VERSION,
+        prompt_version=EXTRACT_PROMPT_VERSION,
+        model_version=ai_provider.name,
     )
     db.add(session)
     db.flush()
@@ -292,11 +297,16 @@ def _record_ai_run(
 ) -> None:
     now = utc_now()
     latency = int((now - started_at).total_seconds() * 1000) if started_at else None
+    prompt_versions = {
+        "extract_response": EXTRACT_PROMPT_VERSION,
+        "adapt_question": ADAPT_PROMPT_VERSION,
+        "summarize_profile": SUMMARY_PROMPT_VERSION,
+    }
     db.add(models.AIRun(
         session_id=session.id,
         triggering_response_id=response.id if response else None,
         operation_type=operation,
-        prompt_version="adaptive.v1",
+        prompt_version=prompt_versions.get(operation, "adaptive.v1"),
         model_name=provider_name,
         attempt=1,
         status="succeeded" if success else "failed",
@@ -319,6 +329,16 @@ def _apply_extraction(
     allowed = set(allowed_dimensions(question.primary_dimension, question.secondary_dimensions))
     seen: set[str] = set()
     answer = response.sanitized_model_input
+    prior_response_ids = {
+        evidence.response_id
+        for state in profile.dimensions.values()
+        for evidence in state.evidence
+    }
+    prior_response_ids.update(
+        response_id
+        for contradiction in profile.contradictions
+        for response_id in contradiction.response_ids
+    )
     for item in extracted.dimensions:
         if item.dimension not in allowed or item.dimension in seen:
             raise ProviderError("unauthorized_dimension")
@@ -326,11 +346,13 @@ def _apply_extraction(
             raise ProviderError("invalid_rubric_label")
         if item.supporting_quote not in answer:
             raise ProviderError("invalid_evidence_quote")
+        if any(ref not in prior_response_ids for ref in item.contradiction_response_ids):
+            raise ProviderError("invalid_contradiction_reference")
         seen.add(item.dimension)
         prior = profile.dimensions[item.dimension]
         evidence = list(prior.evidence)
         evidence.append(EvidenceReference(str(response.id), EvidenceKind.DIRECT, item.supporting_quote))
-        weight = max(0.2, min(1.0, item.confidence))
+        weight = max(0.2, min(1.0, item.weight))
         old_score = prior.score if prior.score is not None else LABEL_TO_SCORE[item.label]
         score = round((old_score * (1 - weight)) + (LABEL_TO_SCORE[item.label] * weight))
         profile.dimensions[item.dimension] = DimensionState(
@@ -345,6 +367,15 @@ def _apply_extraction(
             preference_strength_known=item.preference_strength_known,
             scenario_evidence=item.scenario_evidence,
         )
+        if item.contradiction_response_ids:
+            profile.contradictions.append(Contradiction(
+                id=str(uuid4()),
+                dimension=item.dimension,
+                response_ids=list(dict.fromkeys([*item.contradiction_response_ids, str(response.id)])),
+                description=item.summary,
+                major=True,
+                resolved=False,
+            ))
     controller.refresh_coverage(profile)
     return extracted.model_dump(mode="json")
 
@@ -374,53 +405,130 @@ def _selection_reason(profile: ProfileV2, dimension: str) -> str:
     return f"lowest_confidence:{dimension}"
 
 
+def _question_text_key(text: str) -> str:
+    return " ".join(text.casefold().split())
+
+
+def _record_privacy_withheld_run(
+    db: Session,
+    session: models.QuestionnaireSession,
+    response: models.QuestionnaireResponse,
+    *,
+    operation: str,
+    output_json: dict[str, Any] | None = None,
+) -> None:
+    """Audit a provider operation intentionally skipped by the privacy guard."""
+    _record_ai_run(
+        db,
+        session,
+        response,
+        operation=operation,
+        provider_name="privacy-guard",
+        success=True,
+        input_json={"withheld": True},
+        output_json=output_json,
+        error_category="privacy_withheld",
+        fallback_used=True,
+    )
+
+
+def _extraction_answer_payload(
+    question: models.SessionQuestion,
+    response: models.QuestionnaireResponse,
+) -> dict[str, Any]:
+    """Build a context-rich, privacy-sanitized answer for the provider."""
+    raw = response.raw_response
+    answer = raw if isinstance(raw, dict) else {}
+    selected_option_id = answer.get("selected_option_id")
+    selected_option_label = next(
+        (
+            option["label"]
+            for option in question.options_json
+            if option["id"] == selected_option_id
+        ),
+        None,
+    )
+    return {
+        "normalized_text": response.sanitized_model_input,
+        "selected_option_id": selected_option_id,
+        "selected_option_label": selected_option_label,
+        "scale_value": answer.get("scale_value"),
+    }
+
+
 def _process_response(
     db: Session,
     session: models.QuestionnaireSession,
     question: models.SessionQuestion,
     response: models.QuestionnaireResponse,
+    *,
+    ai_allowed: bool,
 ) -> None:
     now = utc_now()
     session.status = "processing"
     profile = _latest_profile(db, session)
     profile.question_count = session.total_questions + 1
     extraction_input = {
+        "question_id": question.question_id,
         "question": question.exact_question_text,
-        "answer": response.sanitized_model_input,
+        "question_type": question.question_type,
+        "target_dimension": question.primary_dimension,
+        "secondary_dimensions": question.secondary_dimensions,
+        "evidence_type": "scenario_response" if question.question_type == "scenario" else question.question_type,
+        "answer": _extraction_answer_payload(question, response),
+        "options": question.options_json if question.question_type == "single_choice" else [],
+        "scale": {
+            "minimum": question.scale_min,
+            "maximum": question.scale_max,
+        } if question.question_type == "scale" else None,
         "allowed_dimensions": allowed_dimensions(question.primary_dimension, question.secondary_dimensions),
+        "prior_response_ids": [
+            str(item.id) for item in db.scalars(
+                select(models.QuestionnaireResponse).where(
+                    models.QuestionnaireResponse.session_id == session.id,
+                    models.QuestionnaireResponse.id != response.id,
+                )
+            ).all()
+        ],
     }
-    started = utc_now()
-    provider = ai_provider
-    fallback_used = provider is fallback_provider
-    try:
-        extracted = provider.extract(extraction_input)
-    except ProviderError as error:
+    if not ai_allowed:
+        extraction = _mock_extract(profile, question, response.id, response.sanitized_model_input, False)
+        _record_privacy_withheld_run(
+            db, session, response, operation="extract_response", output_json=extraction,
+        )
+    else:
+        started = utc_now()
+        provider = ai_provider
+        fallback_used = provider is fallback_provider
+        try:
+            extracted = provider.extract(extraction_input)
+        except ProviderError as error:
+            _record_ai_run(
+                db, session, response, operation="extract_response", provider_name=provider.name,
+                success=False, input_json=extraction_input, error_category=error.category, started_at=started,
+            )
+            provider = fallback_provider
+            fallback_used = True
+            extracted = provider.extract(extraction_input)
+        try:
+            extraction = _apply_extraction(profile, response, question, extracted)
+        except ProviderError as error:
+            _record_ai_run(
+                db, session, response, operation="extract_response", provider_name=provider.name,
+                success=False, input_json=extraction_input, error_category=error.category,
+                fallback_used=provider is fallback_provider, started_at=started,
+            )
+            if provider is fallback_provider:
+                raise
+            provider = fallback_provider
+            fallback_used = True
+            extracted = provider.extract(extraction_input)
+            extraction = _apply_extraction(profile, response, question, extracted)
         _record_ai_run(
             db, session, response, operation="extract_response", provider_name=provider.name,
-            success=False, input_json=extraction_input, error_category=error.category, started_at=started,
+            success=True, input_json=extraction_input, output_json=extraction,
+            fallback_used=fallback_used, started_at=started,
         )
-        provider = fallback_provider
-        fallback_used = True
-        extracted = provider.extract(extraction_input)
-    try:
-        extraction = _apply_extraction(profile, response, question, extracted)
-    except ProviderError as error:
-        _record_ai_run(
-            db, session, response, operation="extract_response", provider_name=provider.name,
-            success=False, input_json=extraction_input, error_category=error.category,
-            fallback_used=provider is fallback_provider, started_at=started,
-        )
-        if provider is fallback_provider:
-            raise
-        provider = fallback_provider
-        fallback_used = True
-        extracted = provider.extract(extraction_input)
-        extraction = _apply_extraction(profile, response, question, extracted)
-    _record_ai_run(
-        db, session, response, operation="extract_response", provider_name=provider.name,
-        success=True, input_json=extraction_input, output_json=extraction,
-        fallback_used=fallback_used, started_at=started,
-    )
     response.extracted_information_json = extraction
     response.validation_status = "valid"
     question.answered_at = now
@@ -456,10 +564,8 @@ def _process_response(
         }
         summary_started = utc_now()
         try:
-            summary = ai_provider.summarize(summary_input).summary
-            if not summary.strip():
-                raise ProviderError("invalid_summary")
-            profile.written_summary = summary.strip()
+            summary = validate_summary(ai_provider.summarize(summary_input).summary)
+            profile.written_summary = summary
             _record_ai_run(db, session, response, operation="summarize_profile", provider_name=ai_provider.name,
                            success=True, input_json=summary_input, output_json={"summary": profile.written_summary},
                            fallback_used=ai_provider is fallback_provider, started_at=summary_started)
@@ -510,21 +616,31 @@ def _process_response(
         "bank_question": next_question.prompt,
         "last_answer": response.sanitized_model_input,
     }
-    adaptation_started = utc_now()
     displayed_text, source = next_question.prompt, "bank"
-    try:
-        adapted = ai_provider.adapt_question(adaptation_input).text.strip()
-        valid, _ = privacy.validate_generated_question(adapted)
-        if not valid:
-            raise ProviderError("unsafe_or_invalid_question")
-        displayed_text, source = adapted, "ai_adapted"
-        _record_ai_run(db, session, response, operation="adapt_question", provider_name=ai_provider.name,
-                       success=True, input_json=adaptation_input, output_json={"text": adapted},
-                       fallback_used=ai_provider is fallback_provider, started_at=adaptation_started)
-    except ProviderError as error:
-        _record_ai_run(db, session, response, operation="adapt_question", provider_name=ai_provider.name,
-                       success=False, input_json=adaptation_input, error_category=error.category,
-                       fallback_used=True, started_at=adaptation_started)
+    if not ai_allowed:
+        _record_privacy_withheld_run(db, session, response, operation="adapt_question")
+    else:
+        adaptation_started = utc_now()
+        try:
+            adapted = ai_provider.adapt_question(adaptation_input).text.strip()
+            valid, _ = privacy.validate_generated_question(adapted)
+            asked_texts = db.scalars(
+                select(models.SessionQuestion.exact_question_text).where(
+                    models.SessionQuestion.session_id == session.id
+                )
+            ).all()
+            if not valid:
+                raise ProviderError("unsafe_or_invalid_question")
+            if _question_text_key(adapted) in {_question_text_key(item) for item in asked_texts}:
+                raise ProviderError("repeated_question")
+            displayed_text, source = adapted, "ai_adapted"
+            _record_ai_run(db, session, response, operation="adapt_question", provider_name=ai_provider.name,
+                           success=True, input_json=adaptation_input, output_json={"text": adapted},
+                           fallback_used=ai_provider is fallback_provider, started_at=adaptation_started)
+        except ProviderError as error:
+            _record_ai_run(db, session, response, operation="adapt_question", provider_name=ai_provider.name,
+                           success=False, input_json=adaptation_input, error_category=error.category,
+                           fallback_used=True, started_at=adaptation_started)
     _present_question(
         db, session, next_question, profile, selection_reason,
         displayed_text=displayed_text, source=source,
@@ -548,7 +664,7 @@ def _mark_processing_failure(
             session_id=session.id,
             triggering_response_id=response.id,
             operation_type=operation_type,
-            prompt_version="mock.v1",
+            prompt_version=EXTRACT_PROMPT_VERSION,
             model_name="deterministic-mock",
             status="failed",
             error_category="processing_failed",
@@ -566,11 +682,13 @@ def _process_or_mark_retry(
     question: models.SessionQuestion,
     response: models.QuestionnaireResponse,
     operation_type: str,
+    *,
+    ai_allowed: bool,
 ) -> None:
     """Contain processing writes so an unsuccessful attempt cannot alter profile state."""
     try:
         with db.begin_nested():
-            _process_response(db, session, question, response)
+            _process_response(db, session, question, response, ai_allowed=ai_allowed)
     except Exception:
         # The submitted response was flushed before this savepoint. Preserve it,
         # but roll back all tentative profile, question, and audit mutations.
@@ -616,7 +734,9 @@ def submit_answer(db: Session, session_id: UUID, submission: AnswerSubmission) -
     except IntegrityError as error:
         db.rollback()
         raise HTTPException(status_code=409, detail="The answer was already submitted") from error
-    _process_or_mark_retry(db, session, question, response, "mock_extract_and_select")
+    _process_or_mark_retry(
+        db, session, question, response, "extract_and_select", ai_allowed=sanitized.ai_allowed,
+    )
     return public_session(db, get_session_or_404(db, session_id))
 
 
@@ -638,7 +758,14 @@ def retry_session(db: Session, session_id: UUID) -> SessionOut:
     question = db.get(models.SessionQuestion, response.session_question_id)
     if question is None or question.answered_at is not None:
         raise HTTPException(status_code=409, detail="The pending response cannot be retried")
-    _process_or_mark_retry(db, session, question, response, "mock_extract_and_select_retry")
+    _process_or_mark_retry(
+        db,
+        session,
+        question,
+        response,
+        "extract_and_select_retry",
+        ai_allowed=response.sanitized_model_input != "[SENSITIVE_RESPONSE_WITHHELD]",
+    )
     return public_session(db, get_session_or_404(db, session_id))
 
 

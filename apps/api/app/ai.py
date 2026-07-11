@@ -10,11 +10,12 @@ import time
 import urllib.error
 import urllib.request
 from dataclasses import dataclass
-from typing import Any, Protocol
+from typing import Any, Literal, Protocol
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 from roomicheck.v2.config import DIMENSION_IDS
+from .prompts import ADAPT_PROMPT, EXTRACT_PROMPT, SUMMARY_PROMPT
 
 
 class ProviderError(RuntimeError):
@@ -30,14 +31,16 @@ class StrictModel(BaseModel):
 
 class ExtractionDimension(StrictModel):
     dimension: str
-    label: str
+    label: Literal["low", "moderate", "high"]
     confidence: float = Field(ge=0, le=1)
+    weight: float = Field(default=0.5, ge=0.2, le=1)
     supporting_quote: str = Field(min_length=1, max_length=500)
     summary: str = Field(min_length=1, max_length=400)
     unknowns: list[str] = Field(default_factory=list, max_length=4)
     clarification_needed: bool = False
     preference_strength_known: bool = False
     scenario_evidence: bool = False
+    contradiction_response_ids: list[str] = Field(default_factory=list, max_length=4)
 
 
 class ExtractionResult(StrictModel):
@@ -68,7 +71,12 @@ class FallbackAdaptiveProvider:
     name: str = "curated-fallback"
 
     def extract(self, payload: dict[str, Any]) -> ExtractionResult:
-        answer = str(payload["answer"]).strip()
+        answer_payload = payload["answer"]
+        answer = (
+            str(answer_payload.get("normalized_text", "")).strip()
+            if isinstance(answer_payload, dict)
+            else str(answer_payload).strip()
+        )
         targets = payload["allowed_dimensions"]
         # The fallback deliberately stays low-confidence and neutral; it never
         # manufactures semantic traits from free text.
@@ -78,6 +86,7 @@ class FallbackAdaptiveProvider:
                     dimension=dimension,
                     label="moderate",
                     confidence=0.55,
+                    weight=0.5,
                     supporting_quote=answer[:500],
                     summary="A response was recorded for this co-living dimension.",
                     unknowns=["Preference strength requires clarification."],
@@ -155,26 +164,38 @@ class GeminiAdaptiveProvider:
 
     def extract(self, payload: dict[str, Any]) -> ExtractionResult:
         result = self._request(
-            "Interpret only the supplied co-living answer. Return labels low, moderate, or high only. "
-            "Use supporting_quote copied exactly from the answer. Never infer protected traits or score quality. "
-            "Return only allowed_dimensions and omit dimensions without evidence.", payload, ExtractionResult,
+            EXTRACT_PROMPT, payload, ExtractionResult,
         )
         return result  # type: ignore[return-value]
 
     def adapt_question(self, payload: dict[str, Any]) -> AdaptedQuestion:
         result = self._request(
-            "Reword the supplied curated multiple-choice question for the selected target only. Preserve its meaning, "
-            "ask one practical non-sensitive question, and end with a question mark.", payload, AdaptedQuestion,
+            ADAPT_PROMPT, payload, AdaptedQuestion,
         )
         return result  # type: ignore[return-value]
 
     def summarize(self, payload: dict[str, Any]) -> SummaryResult:
         result = self._request(
-            "Write a neutral concise co-living preference summary grounded only in the validated profile. "
-            "Mention uncertainty when present; do not diagnose, judge, or add facts.", payload, SummaryResult,
+            SUMMARY_PROMPT, payload, SummaryResult,
         )
         return result  # type: ignore[return-value]
 
 
 def allowed_dimensions(primary: str | None, secondary: list[str]) -> list[str]:
     return list(DIMENSION_IDS) if primary is None else [primary, *secondary]
+
+
+SUMMARY_FORBIDDEN_TERMS = (
+    "good roommate", "bad roommate", "difficult", "antisocial", "incompatible",
+    "personality disorder", "diagnosis", "mentally ill",
+)
+
+
+def validate_summary(text: str) -> str:
+    candidate = " ".join(text.split())
+    lowered = candidate.casefold()
+    if not candidate or len(candidate) > 1000:
+        raise ProviderError("invalid_summary")
+    if any(term in lowered for term in SUMMARY_FORBIDDEN_TERMS):
+        raise ProviderError("summary_policy_violation")
+    return candidate
