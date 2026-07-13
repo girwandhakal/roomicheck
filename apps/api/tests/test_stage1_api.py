@@ -249,10 +249,11 @@ def test_complete_synthetic_session_creates_one_snapshot_per_answer(api) -> None
                 break
 
         assert current["status"] == "complete"
-        assert current["progress"]["answered"] == 12
+        assert 6 <= current["progress"]["answered"] <= 12
         with SessionFactory() as database:
-            assert database.query(models.ProfileSnapshot).filter_by(session_id=session_id).count() == 12
-            assert database.query(models.QuestionnaireResponse).filter_by(session_id=session_id).count() == 12
+            answered = current["progress"]["answered"]
+            assert database.query(models.ProfileSnapshot).filter_by(session_id=session_id).count() == answered
+            assert database.query(models.QuestionnaireResponse).filter_by(session_id=session_id).count() == answered
             events = {
                 event.event_name
                 for event in database.query(models.AnalyticsEvent).filter_by(session_id=session_id).all()

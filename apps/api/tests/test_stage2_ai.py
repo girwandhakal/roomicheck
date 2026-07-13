@@ -15,7 +15,7 @@ from app.ai import (
     SummaryResult,
     validate_summary,
 )
-from app.service import _apply_extraction, _extraction_answer_payload
+from app.service import _apply_extraction, _extraction_answer_payload, _fixed_choice_extraction
 from app import models
 from roomicheck.v2.models import ProfileV2
 
@@ -184,3 +184,24 @@ def test_extraction_payload_preserves_question_context() -> None:
         "selected_option_label": "I need a quiet room.",
         "scale_value": None,
     }
+
+
+def test_known_choice_uses_deterministic_mapping() -> None:
+    profile = ProfileV2.empty()
+    question = _question()
+    question.options_json = [
+        {"id": "quiet", "label": "I'd be distracted until the room was quiet."},
+        {"id": "other", "label": "Something else."},
+    ]
+    response = _response("I'd be distracted until the room was quiet.")
+    response.raw_response = {
+        "free_text": None,
+        "scale_value": None,
+        "selected_option_id": "quiet",
+    }
+    extracted = _fixed_choice_extraction(question, response)
+    assert extracted is not None
+    assert extracted.dimensions[0].label == "low"
+    assert extracted.dimensions[0].confidence == 0.95
+    _apply_extraction(profile, response, question, extracted)
+    assert profile.dimensions["noise_environment"].score == 20

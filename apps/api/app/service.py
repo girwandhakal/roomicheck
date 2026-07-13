@@ -23,6 +23,7 @@ from roomicheck.v2.models import (
     Contradiction,
 )
 from roomicheck.v2.questions import QuestionDefinition, load_question_bank
+from roomicheck.v2.fixed_scoring import fixed_option_effects, fixed_scale_effects
 
 from . import models
 from .ai import (
@@ -30,6 +31,8 @@ from .ai import (
     AdaptiveProvider,
     FallbackAdaptiveProvider,
     GeminiAdaptiveProvider,
+    ExtractionDimension,
+    ExtractionResult,
     ProviderError,
     allowed_dimensions,
     validate_summary,
@@ -301,6 +304,7 @@ def _record_ai_run(
         "extract_response": EXTRACT_PROMPT_VERSION,
         "adapt_question": ADAPT_PROMPT_VERSION,
         "summarize_profile": SUMMARY_PROMPT_VERSION,
+        "fixed_choice_score": "co_living_scoring.v2",
     }
     db.add(models.AIRun(
         session_id=session.id,
@@ -456,6 +460,77 @@ def _extraction_answer_payload(
     }
 
 
+def _fixed_choice_extraction(
+    question: models.SessionQuestion,
+    response: models.QuestionnaireResponse,
+) -> ExtractionResult | None:
+    """Return a validated extraction for a known option, without calling AI."""
+    if question.question_type != "single_choice":
+        return None
+    raw = response.raw_response if isinstance(response.raw_response, dict) else {}
+    option_id = raw.get("selected_option_id")
+    if not isinstance(option_id, str) or option_id == "other":
+        return None
+    effects = fixed_option_effects(
+        question.question_id,
+        option_id,
+        allowed_dimensions(question.primary_dimension, question.secondary_dimensions),
+    )
+    if effects is None:
+        raise ProviderError("missing_fixed_mapping")
+    return ExtractionResult(
+        dimensions=[
+            ExtractionDimension(
+                dimension=dimension,
+                label=effect.label,
+                confidence=effect.confidence,
+                weight=1.0,
+                supporting_quote=response.sanitized_model_input,
+                summary=effect.summary,
+                preference_strength_known=True,
+                scenario_evidence=True,
+            )
+            for dimension, effect in effects.items()
+        ]
+    )
+
+
+def _fixed_answer_extraction(
+    question: models.SessionQuestion,
+    response: models.QuestionnaireResponse,
+) -> ExtractionResult | None:
+    if question.question_type == "single_choice":
+        return _fixed_choice_extraction(question, response)
+    if question.question_type != "scale":
+        return None
+    raw = response.raw_response if isinstance(response.raw_response, dict) else {}
+    scale_value = raw.get("scale_value")
+    if not isinstance(scale_value, int) or isinstance(scale_value, bool):
+        return None
+    effects = fixed_scale_effects(
+        question.question_id,
+        scale_value,
+        allowed_dimensions(question.primary_dimension, question.secondary_dimensions),
+    )
+    if effects is None:
+        raise ProviderError("missing_fixed_mapping")
+    return ExtractionResult(
+        dimensions=[
+            ExtractionDimension(
+                dimension=dimension,
+                label=effect.label,
+                confidence=effect.confidence,
+                weight=1.0,
+                supporting_quote=response.sanitized_model_input,
+                summary=effect.summary,
+                preference_strength_known=True,
+                scenario_evidence=False,
+            )
+            for dimension, effect in effects.items()
+        ]
+    )
+
+
 def _process_response(
     db: Session,
     session: models.QuestionnaireSession,
@@ -491,7 +566,21 @@ def _process_response(
             ).all()
         ],
     }
-    if not ai_allowed:
+    fixed_extraction = _fixed_answer_extraction(question, response) if ai_allowed else None
+    if fixed_extraction is not None:
+        extraction = _apply_extraction(profile, response, question, fixed_extraction)
+        _record_ai_run(
+            db,
+            session,
+            response,
+            operation="fixed_choice_score",
+            provider_name="deterministic-fixed-choice",
+            success=True,
+            input_json=extraction_input,
+            output_json=extraction,
+            fallback_used=False,
+        )
+    elif not ai_allowed:
         extraction = _mock_extract(profile, question, response.id, response.sanitized_model_input, False)
         _record_privacy_withheld_run(
             db, session, response, operation="extract_response", output_json=extraction,
@@ -619,6 +708,10 @@ def _process_response(
     displayed_text, source = next_question.prompt, "bank"
     if not ai_allowed:
         _record_privacy_withheld_run(db, session, response, operation="adapt_question")
+    elif fixed_extraction is not None:
+        # Known options use the curated bank wording and do not need a second
+        # model call to rewrite a question.
+        pass
     else:
         adaptation_started = utc_now()
         try:
