@@ -22,48 +22,36 @@ The current milestone generates a six-dimension co-living profile. It asks targe
 
 No third-party Python runtime packages are required.
 
-## Setup
+## Setup (Demo Day)
 
-Create `.env.local` from `.env.example` and set your key:
+Create `.env.local` from `.env.example` in `apps/api` and `apps/web`.
+A valid `DATABASE_URL` is required for Supabase persistence.
 
 ```env
 GEMINI_API_KEY="your-key"
 GEMINI_MODEL="gemini-3.5-flash"
-```
-
-Check connectivity and structured output:
-
-```powershell
-uv run .\scripts\test_gemini_api_key.py
+DATABASE_URL="postgresql://..."
 ```
 
 ## Run
 
-Interactive AI-native assessment:
+To run the Demo Day public web application:
 
+**1. Start the API Server:**
 ```powershell
-uv run .\scripts\run_questionnaire.py --feedback
+cd apps/api
+uv run uvicorn app.main:app --reload
 ```
 
-Prepared synthetic demonstration using Gemini when available:
-
+**2. Start the Next.js Frontend:**
 ```powershell
-uv run .\scripts\run_demo.py
+cd apps/web
+npm install
+npm run dev
 ```
+Open `http://localhost:3000` to access the responsive questionnaire.
 
-Guaranteed offline demonstration of the continuity path:
-
-```powershell
-uv run .\scripts\run_demo.py --offline
-```
-
-Show the complete generated JSON without saving it:
-
-```powershell
-uv run .\scripts\run_demo.py --offline --json --no-save
-```
-
-Profiles are saved under `data/profiles/`. Feedback is stored separately under `data/feedback/` and does not duplicate profile contents.
+*(Legacy CLI assessments are still available via `uv run .\scripts\run_questionnaire.py` in the root folder).*
 
 ## Internal journey audit
 
