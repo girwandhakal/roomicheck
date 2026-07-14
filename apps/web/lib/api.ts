@@ -33,6 +33,28 @@ export interface AnswerValue {
   selected_option_id: string | null;
 }
 
+export interface InternalSession {
+  session_id: string;
+  status: string;
+  started_at: string;
+  last_activity_at: string;
+  completed_at: string | null;
+  abandoned: boolean;
+  error_occurred: boolean;
+  completion_reason: string | null;
+  session_duration_seconds: number | null;
+  questionnaire_version: string;
+  profile_schema_version: string;
+  timeline: Array<{ occurred_at: string; kind: string; label: string; details: Record<string, unknown> }>;
+  questions: Array<Record<string, unknown>>;
+  responses: Array<Record<string, unknown>>;
+  snapshots: Array<Record<string, unknown>>;
+  ai_runs: Array<Record<string, unknown>>;
+  events: Array<Record<string, unknown>>;
+  final_profile: Record<string, unknown> | null;
+  final_summary: string | null;
+}
+
 export class ApiError extends Error {
   constructor(public readonly status: number, message: string) {
     super(message);
@@ -102,5 +124,22 @@ export function recordQuestionDeployed(sessionId: string, questionId: string): P
   return request(`/questionnaire-sessions/${sessionId}/question-deployed`, {
     method: "POST",
     body: JSON.stringify({ session_question_id: questionId }),
+  });
+}
+
+export function recordEvent(
+  sessionId: string,
+  eventName: "questionnaire_opened" | "question_displayed" | "answer_edited" | "back_clicked" | "final_profile_viewed" | "application_error_shown",
+  properties: Record<string, string | number | boolean | null> = {},
+): Promise<void> {
+  return request(`/questionnaire-sessions/${sessionId}/events`, {
+    method: "POST",
+    body: JSON.stringify({ event_name: eventName, properties }),
+  });
+}
+
+export function getInternalSession(sessionId: string, token: string): Promise<InternalSession> {
+  return request(`/internal/questionnaire-sessions/${sessionId}`, {
+    headers: { "X-Internal-Audit-Token": token },
   });
 }

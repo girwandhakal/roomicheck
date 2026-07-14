@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import re
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Any
 from uuid import UUID, uuid4
 
@@ -53,6 +53,23 @@ ai_provider: AdaptiveProvider = (
     else fallback_provider
 )
 
+CLIENT_EVENT_NAMES = {
+    "questionnaire_opened",
+    "question_displayed",
+    "answer_edited",
+    "back_clicked",
+    "final_profile_viewed",
+    "application_error_shown",
+}
+EVENT_PROPERTY_KEYS = {
+    "questionnaire_opened": set(),
+    "question_displayed": {"session_question_id", "question_order"},
+    "answer_edited": {"session_question_id"},
+    "back_clicked": {"session_question_id"},
+    "final_profile_viewed": set(),
+    "application_error_shown": {"error_type", "status"},
+}
+
 SEED_SIGNAL_PATTERNS = {
     "noise_environment": re.compile(r"\b(?:quiet|noise|music|calls?|light|temperature|sleep)\b", re.I),
     "social_interaction": re.compile(r"\b(?:social|friends?|hang out|alone|privacy|own space)\b", re.I),
@@ -65,6 +82,22 @@ SEED_SIGNAL_PATTERNS = {
 
 def utc_now() -> datetime:
     return datetime.now(timezone.utc)
+
+
+def mark_abandoned_if_stale(db: Session, session: models.QuestionnaireSession) -> bool:
+    if session.status not in {"active", "processing", "needs_retry"}:
+        return False
+    cutoff = utc_now() - timedelta(minutes=settings.abandonment_timeout_minutes)
+    if session.last_activity_at >= cutoff:
+        return False
+    session.status = "abandoned"
+    session.abandoned = True
+    db.add(models.AnalyticsEvent(
+        session_id=session.id,
+        event_name="session_abandoned",
+        event_properties_json={"timeout_minutes": settings.abandonment_timeout_minutes},
+    ))
+    return True
 
 
 def seed_question_bank(db: Session) -> None:
@@ -164,11 +197,12 @@ def _question_out(question: models.SessionQuestion | None) -> QuestionOut | None
 
 
 def public_session(db: Session, session: models.QuestionnaireSession) -> SessionOut:
+    current_question = _current_question(db, session.id) if session.status in {"active", "processing", "needs_retry"} else None
     return SessionOut(
         session_id=session.id,
         status=session.status,
         progress=ProgressOut(answered=session.total_questions),
-        current_question=_question_out(_current_question(db, session.id)),
+        current_question=_question_out(current_question),
         final_profile=session.final_profile_json if session.status == "complete" else None,
         final_summary=session.final_summary if session.status == "complete" else None,
     )
@@ -200,7 +234,11 @@ def get_session_or_404(db: Session, session_id: UUID) -> models.QuestionnaireSes
 
 
 def get_public_session(db: Session, session_id: UUID) -> SessionOut:
-    return public_session(db, get_session_or_404(db, session_id))
+    session = get_session_or_404(db, session_id)
+    changed = mark_abandoned_if_stale(db, session)
+    if changed:
+        db.commit()
+    return public_session(db, session)
 
 
 def record_question_deployed(db: Session, session_id: UUID, question_id: UUID) -> None:
@@ -222,6 +260,59 @@ def record_question_deployed(db: Session, session_id: UUID, question_id: UUID) -
             event_properties_json={"session_question_id": str(question.id), "question_order": question.question_order},
         ))
         db.commit()
+
+
+def record_client_event(
+    db: Session,
+    session_id: UUID,
+    event_name: str,
+    properties: dict[str, str | int | float | bool | None],
+) -> None:
+    session = get_session_or_404(db, session_id)
+    if event_name not in CLIENT_EVENT_NAMES:
+        raise HTTPException(status_code=422, detail="Unsupported analytics event")
+    allowed_keys = EVENT_PROPERTY_KEYS[event_name]
+    if set(properties) - allowed_keys:
+        raise HTTPException(status_code=422, detail="Unsupported analytics event property")
+    for key, value in properties.items():
+        if len(key) > 64 or isinstance(value, str) and len(value) > 128:
+            raise HTTPException(status_code=422, detail="Analytics event property is too large")
+    question_property = properties.get("session_question_id")
+    if question_property is not None:
+        if not isinstance(question_property, str):
+            raise HTTPException(status_code=422, detail="Invalid question reference")
+        try:
+            question = db.get(models.SessionQuestion, UUID(question_property))
+        except ValueError as error:
+            raise HTTPException(status_code=422, detail="Invalid question reference") from error
+        if question is None or question.session_id != session.id:
+            raise HTTPException(status_code=422, detail="Question is not part of this session")
+        if "question_order" in properties and properties["question_order"] != question.question_order:
+            raise HTTPException(status_code=422, detail="Question order does not match the session")
+    if event_name == "final_profile_viewed" and session.status != "complete":
+        raise HTTPException(status_code=409, detail="The final profile is not available")
+    if event_name == "question_displayed":
+        question_id = properties.get("session_question_id")
+        existing = db.scalar(select(models.AnalyticsEvent).where(
+            models.AnalyticsEvent.session_id == session.id,
+            models.AnalyticsEvent.event_name == event_name,
+            models.AnalyticsEvent.event_properties_json["session_question_id"].as_string() == str(question_id),
+        ))
+        if existing is not None:
+            return
+    if event_name == "final_profile_viewed":
+        existing = db.scalar(select(models.AnalyticsEvent).where(
+            models.AnalyticsEvent.session_id == session.id,
+            models.AnalyticsEvent.event_name == event_name,
+        ))
+        if existing is not None:
+            return
+    db.add(models.AnalyticsEvent(
+        session_id=session.id,
+        event_name=event_name,
+        event_properties_json=properties,
+    ))
+    db.commit()
 
 
 def _normalize_answer(question: models.SessionQuestion, submission: AnswerSubmission) -> str:
@@ -625,7 +716,14 @@ def _process_response(
     session.total_questions = profile.question_count
     session.last_activity_at = now
 
-    decision = controller.decide(profile)
+    asked = set(
+        db.scalars(
+            select(models.SessionQuestion.question_id).where(
+                models.SessionQuestion.session_id == session.id
+            )
+        ).all()
+    )
+    decision = controller.decide(profile, asked)
     question.confidence_after_json = _confidence_map(profile)
     snapshot = models.ProfileSnapshot(
         session_id=session.id,
@@ -675,13 +773,6 @@ def _process_response(
         return
 
     session.status = "active"
-    asked = set(
-        db.scalars(
-            select(models.SessionQuestion.question_id).where(
-                models.SessionQuestion.session_id == session.id
-            )
-        ).all()
-    )
     next_question = question_bank.next_for_dimension(decision.next_dimension, asked)
     if next_question is None:
         # A target can need more clarification than the two bank questions
@@ -805,6 +896,8 @@ def submit_answer(db: Session, session_id: UUID, submission: AnswerSubmission) -
         return public_session(db, get_session_or_404(db, session_id))
 
     session = get_session_or_404(db, session_id)
+    if mark_abandoned_if_stale(db, session):
+        db.commit()
     if session.status not in {"active", "needs_retry"}:
         raise HTTPException(status_code=409, detail="Session is not accepting answers")
     question = _current_question(db, session.id)

@@ -232,7 +232,7 @@ def test_complete_synthetic_session_creates_one_snapshot_per_answer(api) -> None
         session_ids.append(session_id)
         current = started.json()
 
-        for _ in range(12):
+        for _ in range(25):
             question = current["current_question"]
             assert question is not None
             if question["question_type"] == "free_text":
@@ -249,7 +249,7 @@ def test_complete_synthetic_session_creates_one_snapshot_per_answer(api) -> None
                 break
 
         assert current["status"] == "complete"
-        assert 6 <= current["progress"]["answered"] <= 12
+        assert 6 <= current["progress"]["answered"] <= 25
         with SessionFactory() as database:
             answered = current["progress"]["answered"]
             assert database.query(models.ProfileSnapshot).filter_by(session_id=session_id).count() == answered

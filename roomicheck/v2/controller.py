@@ -10,9 +10,12 @@ from .questions import QuestionBank, QuestionDefinition, load_question_bank
 
 MINIMUM_QUESTION_COUNT = 6
 TARGET_QUESTION_COUNT_MIN = 7
-TARGET_QUESTION_COUNT_MAX = 10
-MAXIMUM_QUESTION_COUNT = 12
+TARGET_QUESTION_COUNT_MAX = 25
+MAXIMUM_QUESTION_COUNT = 25
 SUFFICIENT_CONFIDENCE = 0.70
+DETAIL_EVIDENCE_MINIMUM = 80
+DETAIL_EVIDENCE_STRONG = 180
+MAX_DETAIL_QUESTIONS = 2
 
 
 class CompletionReason(StrEnum):
@@ -65,10 +68,50 @@ class AdaptiveController:
             else:
                 dimension.coverage = CoverageStatus.PARTIAL
 
-    def next_target_dimension(self, profile: ProfileV2) -> str:
+    @staticmethod
+    def _detail_questions_needed(state: DimensionState) -> int:
+        """Return the number of additional questions justified by current evidence."""
+        if not state.evidence:
+            return 0
+        if state.clarification_needed or state.unknowns or not state.preference_strength_known:
+            return MAX_DETAIL_QUESTIONS
+
+        evidence_length = sum(len(item.excerpt) for item in state.evidence)
+        if evidence_length >= DETAIL_EVIDENCE_STRONG and state.confidence >= SUFFICIENT_CONFIDENCE:
+            return 0
+        if evidence_length >= DETAIL_EVIDENCE_MINIMUM and state.confidence >= SUFFICIENT_CONFIDENCE:
+            return 1
+        return MAX_DETAIL_QUESTIONS
+
+    def _needs_detail(self, profile: ProfileV2, dimension: str, asked_question_ids: set[str]) -> bool:
+        state = profile.dimensions[dimension]
+        if not state.evidence:
+            return False
+        asked_for_dimension = sum(
+            question.active
+            and not question.is_seed
+            and question.primary_dimension == dimension
+            and question.id in asked_question_ids
+            for question in self.question_bank.questions
+        )
+        available = sum(
+            question.active
+            and not question.is_seed
+            and question.primary_dimension == dimension
+            and question.id not in asked_question_ids
+            for question in self.question_bank.questions
+        )
+        return available > 0 and asked_for_dimension < self._detail_questions_needed(state)
+
+    def next_target_dimension(self, profile: ProfileV2, asked_question_ids: set[str] | None = None) -> str:
         for dimension in DIMENSION_IDS:
             if self._has_unresolved_major_contradiction(profile, dimension):
                 return dimension
+
+        if asked_question_ids is not None:
+            for dimension in DIMENSION_IDS:
+                if self._needs_detail(profile, dimension, asked_question_ids):
+                    return dimension
 
         for dimension in DIMENSION_IDS:
             if profile.dimensions[dimension].coverage == CoverageStatus.UNKNOWN:
@@ -96,7 +139,7 @@ class AdaptiveController:
             key=lambda item: (profile.dimensions[item].confidence, DIMENSION_IDS.index(item)),
         )
 
-    def decide(self, profile: ProfileV2) -> CompletionDecision:
+    def decide(self, profile: ProfileV2, asked_question_ids: set[str] | None = None) -> CompletionDecision:
         if profile.question_count > MAXIMUM_QUESTION_COUNT:
             raise ValueError("Question count exceeds the hard maximum")
         self.refresh_coverage(profile)
@@ -106,23 +149,34 @@ class AdaptiveController:
                 profile.dimensions[dimension].coverage == CoverageStatus.SUFFICIENT
                 for dimension in DIMENSION_IDS
             )
+            and (
+                asked_question_ids is None
+                or not any(
+                    self._needs_detail(profile, dimension, asked_question_ids)
+                    for dimension in DIMENSION_IDS
+                )
+            )
         )
         if threshold_met:
             return CompletionDecision(True, CompletionReason.THRESHOLD_MET)
         if profile.question_count >= MAXIMUM_QUESTION_COUNT:
             self.refresh_coverage(profile, maximum_reached=True)
             return CompletionDecision(True, CompletionReason.MAXIMUM_REACHED)
-        return CompletionDecision(False, next_dimension=self.next_target_dimension(profile))
+        return CompletionDecision(
+            False,
+            next_dimension=self.next_target_dimension(profile, asked_question_ids),
+        )
 
     def select_next_question(
         self,
         profile: ProfileV2,
         asked_question_ids: set[str] | None = None,
     ) -> QuestionDefinition | None:
-        decision = self.decide(profile)
+        asked = asked_question_ids or set()
+        decision = self.decide(profile, asked)
         if decision.complete or decision.next_dimension is None:
             return None
-        return self.question_bank.next_for_dimension(decision.next_dimension, asked_question_ids)
+        return self.question_bank.next_for_dimension(decision.next_dimension, asked)
 
     @classmethod
     def mark_uncertain_at_maximum(cls, profile: ProfileV2) -> None:

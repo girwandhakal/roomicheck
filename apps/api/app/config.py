@@ -15,6 +15,8 @@ class Settings(BaseSettings):
     database_url: str = Field(min_length=1)
     cors_origins: str = "http://localhost:3000"
     environment: str = "development"
+    abandonment_timeout_minutes: int = Field(default=30, ge=1, le=10080)
+    internal_audit_token: str = ""
     # Live AI is the normal product path. The service still falls back to the
     # curated provider when no key is configured or a provider call fails.
     ai_mode: str = "gemini"

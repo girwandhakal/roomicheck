@@ -2,11 +2,19 @@ from __future__ import annotations
 
 from uuid import UUID
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Request
 from sqlalchemy import text
 
 from .database import DatabaseSession
-from .schemas import AnswerSubmission, HealthOut, QuestionDeployedSubmission, SessionOut
+from .audit import get_internal_session, require_internal_audit_token
+from .schemas import (
+    AnalyticsEventSubmission,
+    AnswerSubmission,
+    HealthOut,
+    QuestionDeployedSubmission,
+    SessionOut,
+    InternalSessionOut,
+)
 from .service import (
     create_session,
     get_public_session,
@@ -14,6 +22,7 @@ from .service import (
     retry_session,
     submit_answer,
     record_question_deployed,
+    record_client_event,
 )
 
 
@@ -39,6 +48,16 @@ def read_questionnaire(session_id: UUID, db: DatabaseSession) -> SessionOut:
     return get_public_session(db, session_id)
 
 
+@router.get("/internal/questionnaire-sessions/{session_id}", response_model=InternalSessionOut)
+def read_internal_questionnaire(
+    session_id: UUID,
+    request: Request,
+    db: DatabaseSession,
+) -> InternalSessionOut:
+    require_internal_audit_token(request)
+    return get_internal_session(db, session_id)
+
+
 @router.post("/questionnaire-sessions/{session_id}/answers", response_model=SessionOut)
 def answer_questionnaire(
     session_id: UUID,
@@ -60,6 +79,15 @@ def deploy_question_event(
     db: DatabaseSession,
 ) -> None:
     record_question_deployed(db, session_id, submission.session_question_id)
+
+
+@router.post("/questionnaire-sessions/{session_id}/events", status_code=204)
+def record_event(
+    session_id: UUID,
+    submission: AnalyticsEventSubmission,
+    db: DatabaseSession,
+) -> None:
+    record_client_event(db, session_id, submission.event_name, submission.properties)
 
 
 @router.post("/questionnaire-sessions/{session_id}/restart", response_model=SessionOut)

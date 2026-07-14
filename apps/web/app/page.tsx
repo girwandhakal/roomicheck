@@ -6,6 +6,7 @@ import {
   ApiError,
   getSession,
   QuestionnaireSession,
+  recordEvent,
   restartSession,
   retrySession,
   recordQuestionDeployed,
@@ -18,9 +19,9 @@ const SESSION_KEY = "roomicheck_session_id";
 const DIMENSION_LABELS: Record<string, string> = {
   noise_environment: "Noise and environment",
   social_interaction: "Social interaction",
-  study_daily_routine: "Study and daily routine",
+  study_daily_routine: "Study, sleep, and daily schedule",
   cultural_openness: "Cultural openness",
-  household_structure: "Household structure",
+  household_structure: "Cleanliness, chores, and shared living",
   communication_conflict: "Communication and conflict",
 };
 
@@ -132,7 +133,16 @@ export default function Home() {
     const sessionId = session?.session_id;
     if (!sessionId || !question || session.status === "complete") return;
     recordQuestionDeployed(sessionId, question.id).catch(() => undefined);
+    recordEvent(sessionId, "question_displayed", {
+      session_question_id: question.id,
+      question_order: question.order,
+    }).catch(() => undefined);
   }, [question, session?.session_id, session?.status]);
+
+  useEffect(() => {
+    if (!error || !session?.session_id) return;
+    recordEvent(session.session_id, "application_error_shown", { error_type: "request" }).catch(() => undefined);
+  }, [error, session?.session_id]);
 
   const selectedAnswer = useMemo<AnswerValue | null>(() => {
     if (!question) return null;
@@ -160,6 +170,7 @@ export default function Home() {
       const created = await startSession();
       window.localStorage.setItem(SESSION_KEY, created.session_id);
       setSession(created);
+      recordEvent(created.session_id, "questionnaire_opened").catch(() => undefined);
     } catch (caught) {
       setError(errorMessage(caught, "Unable to start RoomiCheck."));
     } finally {
@@ -276,8 +287,7 @@ export default function Home() {
 
         <section className="progress-block" aria-label="Questionnaire progress">
           <div className="progress-meta">
-            <span>Question {question.order} of {session.progress.maximum}</span>
-            <span>{session.progress.answered} answered</span>
+            <span>Question {question.order}</span>
           </div>
           <div className="progress-track" role="progressbar" aria-valuemin={0} aria-valuemax={session.progress.maximum} aria-valuenow={session.progress.answered} aria-label={`${session.progress.answered} of ${session.progress.maximum} questions answered`}>
             <span style={{ width: `${Math.min(100, (session.progress.answered / session.progress.target_maximum) * 100)}%` }} />
@@ -367,6 +377,9 @@ function ErrorNotice({ message }: { message: string }) {
 
 function CompletionView({ session, loading, onRestart, error }: { session: QuestionnaireSession; loading: boolean; onRestart: () => void; error: string | null }) {
   const dimensions = profileDimensions(session.final_profile);
+  useEffect(() => {
+    recordEvent(session.session_id, "final_profile_viewed").catch(() => undefined);
+  }, [session.session_id]);
   return (
     <main className="shell">
       <div className="content-column completion-column">

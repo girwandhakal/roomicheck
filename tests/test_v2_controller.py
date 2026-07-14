@@ -140,6 +140,56 @@ class AdaptiveControllerTests(unittest.TestCase):
         self.assertNotEqual(first.id, second.id)
         self.assertEqual(first.primary_dimension, second.primary_dimension)
 
+    def test_detail_followups_are_dynamic_for_each_dimension(self) -> None:
+        for dimension in DIMENSION_IDS:
+            with self.subTest(dimension=dimension):
+                sparse_profile = filled_profile(0.8)
+                sparse_profile.question_count = MINIMUM_QUESTION_COUNT
+                sparse_profile.dimensions[dimension].evidence = [
+                    EvidenceReference(str(uuid4()), EvidenceKind.DIRECT, "social")
+                ]
+                asked = {
+                    question.id
+                    for question in self.controller.question_bank.questions
+                    if not question.is_seed and question.primary_dimension != dimension
+                }
+                sparse_decision = self.controller.decide(sparse_profile, asked)
+                self.assertEqual(sparse_decision.next_dimension, dimension)
+
+                rich_profile = filled_profile(0.8)
+                rich_profile.question_count = MINIMUM_QUESTION_COUNT
+                for state in rich_profile.dimensions.values():
+                    state.evidence = [
+                        EvidenceReference(str(uuid4()), EvidenceKind.DIRECT, "A detailed answer " * 20)
+                    ]
+                rich_decision = self.controller.decide(rich_profile, set())
+                self.assertTrue(rich_decision.complete)
+
+    def test_medium_detail_requires_one_followup(self) -> None:
+        profile = filled_profile(0.8)
+        profile.dimensions["social_interaction"].evidence = [
+            EvidenceReference(
+                str(uuid4()),
+                EvidenceKind.DIRECT,
+                "I enjoy friendly roommate conversation, occasional shared activities, and checking in after a long day.",
+            )
+        ]
+        for dimension, state in profile.dimensions.items():
+            if dimension != "social_interaction":
+                state.evidence = [
+                    EvidenceReference(str(uuid4()), EvidenceKind.DIRECT, "A detailed answer " * 20)
+                ]
+        asked = {
+            question.id
+            for question in self.controller.question_bank.questions
+            if question.primary_dimension != "social_interaction" and not question.is_seed
+        }
+
+        decision = self.controller.decide(profile, asked)
+
+        self.assertFalse(decision.complete)
+        self.assertEqual(decision.next_dimension, "social_interaction")
+
 
 if __name__ == "__main__":
     unittest.main()

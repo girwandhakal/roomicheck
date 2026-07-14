@@ -18,7 +18,7 @@
     },
     {
       "id": "study_daily_routine",
-      "label": "Study, Work, and Daily Routine",
+      "label": "Study, Sleep, and Daily Schedule",
       "description": "Study or work intensity, sleep schedule, focus needs, and weekday or weekend routines.",
       "score_low": "Flexible and unstructured routine",
       "score_high": "Highly structured and routine-dependent"
@@ -32,7 +32,7 @@
     },
     {
       "id": "household_structure",
-      "label": "Household Structure and Shared Responsibilities",
+      "label": "Cleanliness, Chores, and Shared Living",
       "description": "Cleanliness, chores, shared supplies, food, guests, common areas, and household agreements.",
       "score_low": "Informal and flexible household agreements",
       "score_high": "Highly structured and rule-oriented household agreements"

@@ -2,7 +2,7 @@
 
 RoomiCheck is an AI-native co-living assessment prototype for university housing. It combines scenario-based questions, contextual AI follow-ups, privacy controls, and validated profile synthesis to describe how a student prefers to share a room.
 
-The current milestone generates a five-dimension co-living profile. It does not rank or match roommates yet.
+The current milestone generates a six-dimension co-living profile. It asks targeted detail questions within each dimension before completing the profile. It does not rank or match roommates yet.
 
 ## What It Does
 
@@ -64,6 +64,31 @@ uv run .\scripts\run_demo.py --offline --json --no-save
 ```
 
 Profiles are saved under `data/profiles/`. Feedback is stored separately under `data/feedback/` and does not duplicate profile contents.
+
+## Internal journey audit
+
+The web questionnaire keeps only an opaque session ID in the browser. The
+protected audit view retains and displays the full demo journey without
+deleting any collected data.
+
+Set a private token in `.env.local`:
+
+```env
+INTERNAL_AUDIT_TOKEN="a-long-random-private-token"
+ABANDONMENT_TIMEOUT_MINUTES="30"
+```
+
+After starting the API and web app, open:
+
+```text
+http://localhost:3000/internal/sessions/<session-id>
+```
+
+Use the session ID from the browser's `roomicheck_session_id` local-storage
+value and enter the configured audit token. The API route is disabled unless
+the token is configured. Sessions that exceed the inactivity timeout are
+marked abandoned for timeline purposes; questions, answers, snapshots, AI
+runs, and events are retained.
 
 ## Test
 

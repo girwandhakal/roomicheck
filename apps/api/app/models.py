@@ -41,7 +41,7 @@ class QuestionnaireSession(TimestampMixin, Base):
             "status IN ('active', 'processing', 'needs_retry', 'complete', 'abandoned')",
             name="ck_questionnaire_sessions_status",
         ),
-        CheckConstraint("total_questions BETWEEN 0 AND 12", name="ck_session_question_count"),
+        CheckConstraint("total_questions BETWEEN 0 AND 25", name="ck_session_question_count"),
     )
 
     id: Mapped[UUID] = mapped_column(PG_UUID(as_uuid=True), primary_key=True, default=uuid4)

@@ -283,8 +283,8 @@ class ProfileV2:
             raise ValueError("profile status is invalid")
         if set(self.dimensions) != set(DIMENSION_IDS):
             raise ValueError("profile dimensions must exactly match the v2 dimension IDs")
-        if not _is_int(self.question_count) or not 0 <= self.question_count <= 12:
-            raise ValueError("question_count must be an integer from 0 through 12")
+        if not _is_int(self.question_count) or not 0 <= self.question_count <= 25:
+            raise ValueError("question_count must be an integer from 0 through 25")
         _validate_timestamp(self.created_at, "created_at")
         _validate_timestamp(self.updated_at, "updated_at")
         if self.written_summary is not None and (
@@ -409,7 +409,7 @@ PROFILE_JSON_SCHEMA: dict[str, Any] = {
         },
         "contradictions": {"type": "array", "items": {"$ref": "#/$defs/contradiction"}},
         "written_summary": {"type": ["string", "null"], "minLength": 1},
-        "question_count": {"type": "integer", "minimum": 0, "maximum": 12},
+        "question_count": {"type": "integer", "minimum": 0, "maximum": 25},
         "created_at": {"type": "string", "format": "date-time"},
         "updated_at": {"type": "string", "format": "date-time"},
     },

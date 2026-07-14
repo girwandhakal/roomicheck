@@ -276,6 +276,26 @@ textarea:hover { border-color: var(--ink); }
   .questionnaire-shell .button { min-height: 40px; padding: 7px 14px; }
 }
 
+.audit-column { max-width: 1080px; }
+.audit-auth { display: grid; gap: 12px; max-width: 520px; margin-top: 34px; }
+.audit-auth label { font-weight: 800; }
+.audit-auth input { width: 100%; border: 2px solid var(--line-strong); padding: 12px; }
+.audit-summary { margin: 42px 0; border: 2px solid var(--ink); padding: 24px; }
+.audit-facts { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; margin: 0; }
+.audit-facts div { min-width: 0; border-top: 1px solid var(--line); padding-top: 10px; }
+.audit-facts dt { color: var(--muted); font-size: .8rem; font-weight: 800; text-transform: uppercase; }
+.audit-facts dd { margin: 4px 0 0; overflow-wrap: anywhere; }
+.audit-section { margin: 42px 0; }
+.audit-timeline { display: grid; gap: 12px; margin: 0; padding: 0; list-style: none; }
+.audit-timeline li, .audit-list pre { min-width: 0; border: 1px solid var(--line); background: var(--soft); padding: 16px; }
+.audit-timeline time { display: block; color: var(--muted); font-size: .8rem; }
+.audit-timeline strong { display: block; margin-top: 4px; }
+.audit-timeline pre, .audit-list pre { margin: 12px 0 0; overflow-x: auto; white-space: pre-wrap; overflow-wrap: anywhere; font: .8rem/1.5 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+.audit-list { display: grid; gap: 12px; }
+@media (max-width: 680px) {
+  .audit-facts { grid-template-columns: 1fr 1fr; }
+}
+
 /* Viewport-first layout: keep the active experience inside one screen. */
 @media (min-width: 681px) {
   .questionnaire-shell {

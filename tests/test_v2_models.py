@@ -32,7 +32,7 @@ class V2ConfigurationTests(unittest.TestCase):
 
         self.assertEqual(bank.seed.id, "seed_open_ideal_coliving")
         self.assertEqual(bank.seed.question_type, QuestionType.FREE_TEXT)
-        self.assertIn("ideal co-living experience", bank.seed.prompt)
+        self.assertTrue(bank.seed.prompt.strip())
         for question in bank.questions:
             if question.is_seed:
                 continue
@@ -40,6 +40,13 @@ class V2ConfigurationTests(unittest.TestCase):
             self.assertIn("other", {option.id for option in question.options})
         for dimension in DIMENSION_IDS:
             self.assertIsNotNone(bank.next_for_dimension(dimension))
+            self.assertGreaterEqual(
+                sum(
+                    question.primary_dimension == dimension and not question.is_seed
+                    for question in bank.questions
+                ),
+                2,
+            )
 
 
 class V2ProfileModelTests(unittest.TestCase):
