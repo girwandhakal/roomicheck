@@ -27,10 +27,11 @@ from roomicheck.v2.fixed_scoring import fixed_option_effects, fixed_scale_effect
 
 from . import models
 from .ai import (
+    CONFIDENCE_TO_SCORE,
     LABEL_TO_SCORE,
     AdaptiveProvider,
     FallbackAdaptiveProvider,
-    GeminiAdaptiveProvider,
+    OpenAIAdaptiveProvider,
     ExtractionDimension,
     ExtractionResult,
     ProviderError,
@@ -48,8 +49,8 @@ controller = AdaptiveController(question_bank)
 fallback_provider = FallbackAdaptiveProvider()
 settings = get_settings()
 ai_provider: AdaptiveProvider = (
-    GeminiAdaptiveProvider(settings.gemini_api_key, settings.gemini_model, settings.ai_timeout_seconds)
-    if settings.ai_mode == "gemini" and settings.gemini_api_key
+    OpenAIAdaptiveProvider(settings.openai_api_key, settings.openai_model, settings.ai_timeout_seconds)
+    if settings.ai_mode == "openai" and settings.openai_api_key
     else fallback_provider
 )
 
@@ -448,12 +449,13 @@ def _apply_extraction(
         evidence = list(prior.evidence)
         evidence.append(EvidenceReference(str(response.id), EvidenceKind.DIRECT, item.supporting_quote))
         weight = max(0.2, min(1.0, item.weight))
-        old_score = prior.score if prior.score is not None else LABEL_TO_SCORE[item.label]
-        score = round((old_score * (1 - weight)) + (LABEL_TO_SCORE[item.label] * weight))
+        target_score = item._score_override if item._score_override is not None else LABEL_TO_SCORE[item.label]
+        old_score = prior.score if prior.score is not None else target_score
+        score = round((old_score * (1 - weight)) + (target_score * weight))
         profile.dimensions[item.dimension] = DimensionState(
             score=score,
             label=item.label,
-            confidence=max(prior.confidence, item.confidence),
+            confidence=max(prior.confidence, CONFIDENCE_TO_SCORE[item.confidence]),
             coverage=CoverageStatus.PARTIAL,
             summary=item.summary,
             evidence=evidence,
@@ -476,19 +478,15 @@ def _apply_extraction(
 
 
 def _deterministic_summary(profile: ProfileV2) -> str:
-    sufficient = sum(
-        state.coverage == CoverageStatus.SUFFICIENT for state in profile.dimensions.values()
-    )
-    uncertain = len(DIMENSION_IDS) - sufficient
-    if uncertain:
-        return (
-            f"RoomiCheck recorded evidence across the co-living profile. {sufficient} dimensions "
-            f"have sufficient confidence and {uncertain} remain uncertain."
-        )
-    return (
-        "RoomiCheck recorded direct evidence across all six co-living dimensions. "
-        "Live AI interpretation will replace this Stage 1 development summary."
-    )
+    parts = []
+    for state in profile.dimensions.values():
+        if state.summary:
+            parts.append(state.summary)
+
+    if parts:
+        return " ".join(parts)
+
+    return "RoomiCheck recorded evidence across the co-living profile."
 
 
 def _selection_reason(profile: ProfileV2, dimension: str) -> str:
@@ -569,21 +567,21 @@ def _fixed_choice_extraction(
     )
     if effects is None:
         raise ProviderError("missing_fixed_mapping")
-    return ExtractionResult(
-        dimensions=[
-            ExtractionDimension(
-                dimension=dimension,
-                label=effect.label,
-                confidence=effect.confidence,
-                weight=1.0,
-                supporting_quote=response.sanitized_model_input,
-                summary=effect.summary,
-                preference_strength_known=True,
-                scenario_evidence=True,
-            )
-            for dimension, effect in effects.items()
-        ]
-    )
+    dimensions = []
+    for dimension, effect in effects.items():
+        item = ExtractionDimension(
+            dimension=dimension,
+            label=effect.label,
+            confidence="high" if effect.confidence >= 0.85 else "moderate" if effect.confidence >= 0.7 else "low",
+            weight=1.0,
+            supporting_quote=response.sanitized_model_input,
+            summary=effect.summary,
+            preference_strength_known=True,
+            scenario_evidence=True,
+        )
+        item._score_override = effect.score
+        dimensions.append(item)
+    return ExtractionResult(dimensions=dimensions)
 
 
 def _fixed_answer_extraction(
@@ -605,21 +603,21 @@ def _fixed_answer_extraction(
     )
     if effects is None:
         raise ProviderError("missing_fixed_mapping")
-    return ExtractionResult(
-        dimensions=[
-            ExtractionDimension(
-                dimension=dimension,
-                label=effect.label,
-                confidence=effect.confidence,
-                weight=1.0,
-                supporting_quote=response.sanitized_model_input,
-                summary=effect.summary,
-                preference_strength_known=True,
-                scenario_evidence=False,
-            )
-            for dimension, effect in effects.items()
-        ]
-    )
+    dimensions = []
+    for dimension, effect in effects.items():
+        item = ExtractionDimension(
+            dimension=dimension,
+            label=effect.label,
+            confidence="high" if effect.confidence >= 0.85 else "moderate" if effect.confidence >= 0.7 else "low",
+            weight=1.0,
+            supporting_quote=response.sanitized_model_input,
+            summary=effect.summary,
+            preference_strength_known=True,
+            scenario_evidence=False,
+        )
+        item._score_override = effect.score
+        dimensions.append(item)
+    return ExtractionResult(dimensions=dimensions)
 
 
 def _process_response(

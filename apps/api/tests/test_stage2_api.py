@@ -81,7 +81,7 @@ def test_known_choice_does_not_call_ai_provider(api, monkeypatch) -> None:
             return ExtractionResult(dimensions=[ExtractionDimension(
                 dimension="noise_environment",
                 label="moderate",
-                confidence=0.8,
+                confidence="high",
                 supporting_quote=payload["answer"]["normalized_text"],
                 summary="Seed evidence for the noise dimension.",
                 preference_strength_known=False,

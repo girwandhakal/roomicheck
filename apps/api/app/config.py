@@ -19,9 +19,9 @@ class Settings(BaseSettings):
     internal_audit_token: str = ""
     # Live AI is the normal product path. The service still falls back to the
     # curated provider when no key is configured or a provider call fails.
-    ai_mode: str = "gemini"
-    gemini_api_key: str = ""
-    gemini_model: str = "gemini-3.5-flash"
+    ai_mode: str = "openai"
+    openai_api_key: str = ""
+    openai_model: str = "gpt-4o-mini"
     ai_timeout_seconds: float = 30.0
 
     model_config = SettingsConfigDict(

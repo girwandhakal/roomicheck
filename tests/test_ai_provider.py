@@ -1,12 +1,12 @@
 import unittest
 
-from roomicheck.ai_provider import GeminiProvider, ProviderError
+from roomicheck.ai_provider import OpenAIProvider, ProviderError
 from roomicheck.models import AnswerRecord
 
 
-class GeminiProviderValidationTests(unittest.TestCase):
+class OpenAIProviderValidationTests(unittest.TestCase):
     def setUp(self) -> None:
-        self.provider = GeminiProvider(api_key="test-key")
+        self.provider = OpenAIProvider(api_key="test-key")
         self.answer = AnswerRecord(
             question_id="scenario_01",
             prompt="How clean is the room?",
@@ -20,7 +20,7 @@ class GeminiProviderValidationTests(unittest.TestCase):
                 {
                     "dimension": "living_and_cleanliness",
                     "score": 4,
-                    "confidence": 0.8,
+                    "confidence": "high",
                     "evidence": "Keeps shared spaces clear.",
                 }
             ],
@@ -48,7 +48,7 @@ class GeminiProviderValidationTests(unittest.TestCase):
 
     def test_rejects_out_of_range_confidence(self) -> None:
         payload = self.valid_payload()
-        payload["contributions"][0]["confidence"] = 1.2
+        payload["contributions"][0]["confidence"] = "certain"
 
         with self.assertRaises(ProviderError):
             self.provider._validate_turn(payload, self.answer, True)
@@ -56,4 +56,3 @@ class GeminiProviderValidationTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
-

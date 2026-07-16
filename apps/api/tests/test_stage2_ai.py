@@ -10,7 +10,7 @@ from app.ai import (
     AdaptedQuestion,
     ExtractionDimension,
     ExtractionResult,
-    GeminiAdaptiveProvider,
+    OpenAIAdaptiveProvider,
     ProviderError,
     SummaryResult,
     validate_summary,
@@ -36,7 +36,7 @@ def _question() -> models.SessionQuestion:
     return models.SessionQuestion(
         id=uuid4(), session_id=uuid4(), question_id="noise_focus_preference", question_order=2,
         exact_question_text="How quiet do you prefer it?", question_type="single_choice",
-        primary_dimension="noise_environment", secondary_dimensions=[], options_json=[],
+        primary_dimension="noise_environment", secondary_dimensions=["study_daily_routine"], options_json=[],
         selection_reason="unknown_dimension:noise_environment", source="bank", confidence_before_json={},
     )
 
@@ -45,22 +45,22 @@ def test_extraction_maps_rubric_label_with_deterministic_math() -> None:
     profile = ProfileV2.empty()
     response, question = _response("I need quiet to study."), _question()
     result = ExtractionResult(dimensions=[ExtractionDimension(
-        dimension="noise_environment", label="low", confidence=0.8,
+        dimension="noise_environment", label="very_low", confidence="high",
         weight=0.5,
         supporting_quote="I need quiet to study.", summary="Prefers quiet for focused work.",
         preference_strength_known=True, scenario_evidence=True,
     )])
     _apply_extraction(profile, response, question, result)
     state = profile.dimensions["noise_environment"]
-    assert state.score == 20
-    assert state.confidence == 0.8
+    assert state.score == 10
+    assert state.confidence == 0.9
     assert state.evidence[0].excerpt == "I need quiet to study."
 
 
 def test_extraction_rejects_quote_not_present_in_sanitized_answer() -> None:
     profile = ProfileV2.empty()
     result = ExtractionResult(dimensions=[ExtractionDimension(
-        dimension="noise_environment", label="high", confidence=0.8,
+        dimension="noise_environment", label="very_high", confidence="high",
         supporting_quote="Invented quote", summary="Unsupported.",
     )])
     with pytest.raises(ProviderError, match="invalid_evidence_quote"):
@@ -75,7 +75,7 @@ def test_summary_policy_rejects_judgmental_claims() -> None:
 def test_extraction_rejects_unknown_contradiction_reference() -> None:
     profile = ProfileV2.empty()
     result = ExtractionResult(dimensions=[ExtractionDimension(
-        dimension="noise_environment", label="high", confidence=0.8,
+        dimension="noise_environment", label="very_high", confidence="high",
         supporting_quote="Real answer", summary="Conflicts with prior evidence.",
         contradiction_response_ids=[str(uuid4())],
     )])
@@ -83,8 +83,8 @@ def test_extraction_rejects_unknown_contradiction_reference() -> None:
         _apply_extraction(profile, _response("Real answer"), _question(), result)
 
 
-def test_gemini_provider_classifies_rate_limit(monkeypatch) -> None:
-    provider = GeminiAdaptiveProvider("test-key", "gemini-test")
+def test_openai_provider_classifies_rate_limit(monkeypatch) -> None:
+    provider = OpenAIAdaptiveProvider("test-key", "gpt-test")
 
     def fail(*_args, **_kwargs):
         raise urllib.error.HTTPError("https://example.test", 429, "quota", {}, None)
@@ -99,7 +99,7 @@ def test_extraction_contract_rejects_unknown_label() -> None:
         ExtractionDimension(
             dimension="noise_environment",
             label="extreme",
-            confidence=0.8,
+            confidence="high",
             supporting_quote="quiet",
             summary="Unsupported label.",
         )
@@ -110,7 +110,7 @@ def test_extraction_contract_rejects_invalid_weight() -> None:
         ExtractionDimension(
             dimension="noise_environment",
             label="high",
-            confidence=0.8,
+            confidence="high",
             weight=0.1,
             supporting_quote="quiet",
             summary="Weight is below the allowed range.",
@@ -118,7 +118,7 @@ def test_extraction_contract_rejects_invalid_weight() -> None:
 
 
 def test_provider_classifies_malformed_structured_output(monkeypatch) -> None:
-    provider = GeminiAdaptiveProvider("test-key", "gemini-test")
+    provider = OpenAIAdaptiveProvider("test-key", "gpt-test")
 
     class Response:
         def __enter__(self):
@@ -136,7 +136,7 @@ def test_provider_classifies_malformed_structured_output(monkeypatch) -> None:
 
 
 def test_provider_classifies_timeout_after_retries(monkeypatch) -> None:
-    provider = GeminiAdaptiveProvider("test-key", "gemini-test")
+    provider = OpenAIAdaptiveProvider("test-key", "gpt-test")
 
     def fail(*_args, **_kwargs):
         raise TimeoutError("simulated timeout")
@@ -202,6 +202,30 @@ def test_known_choice_uses_deterministic_mapping() -> None:
     extracted = _fixed_choice_extraction(question, response)
     assert extracted is not None
     assert extracted.dimensions[0].label == "low"
-    assert extracted.dimensions[0].confidence == 0.95
+    assert extracted.dimensions[0].confidence == "high"
     _apply_extraction(profile, response, question, extracted)
     assert profile.dimensions["noise_environment"].score == 20
+    assert profile.dimensions["study_daily_routine"].score == 85
+
+
+def test_ai_adapted_wording_keeps_source_bank_scoring() -> None:
+    question = _question()
+    question.exact_question_text = "AI-adapted wording: how would you protect your focus?"
+    question.options_json = [
+        {"id": "quiet", "label": "I need the room quiet."},
+        {"id": "other", "label": "Something else."},
+    ]
+    response = _response("I need the room quiet.")
+    response.raw_response = {
+        "free_text": None,
+        "scale_value": None,
+        "selected_option_id": "quiet",
+    }
+
+    extracted = _fixed_choice_extraction(question, response)
+
+    assert extracted is not None
+    assert {item.dimension for item in extracted.dimensions} == {
+        "noise_environment",
+        "study_daily_routine",
+    }

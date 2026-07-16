@@ -35,13 +35,16 @@ const DIMENSION_IDS = [
 ] as const;
 
 type ProfileDimension = {
-  score: number | null;
   label: string | null;
   confidence: number;
   coverage: string;
   summary: string | null;
   unknowns: string[];
 };
+
+function preferenceLevel(value: string | null): string {
+  return (value ?? "Not yet defined").replaceAll("_", " ");
+}
 
 type FinalProfile = {
   dimensions?: Record<string, ProfileDimension>;
@@ -61,7 +64,6 @@ function profileDimensions(profile: Record<string, unknown> | null): Array<[stri
   return DIMENSION_IDS.map((id) => {
     const dimension = dimensions?.[id];
     return [id, {
-      score: typeof dimension?.score === "number" ? dimension.score : null,
       label: typeof dimension?.label === "string" ? dimension.label : null,
       confidence: typeof dimension?.confidence === "number" ? dimension.confidence : 0,
       coverage: typeof dimension?.coverage === "string" ? dimension.coverage : "unknown",
@@ -390,15 +392,11 @@ function CompletionView({ session, loading, onRestart, error }: { session: Quest
         <section className="completion-intro" aria-labelledby="complete-title">
           <h1 id="complete-title">Your co-living profile</h1>
         </section>
-        <section className="summary-card" aria-labelledby="summary-title">
-          <h2 id="summary-title">Your summary</h2>
-          <p>{session.final_summary || "Your profile summary is ready."}</p>
-        </section>
         {dimensions.length > 0 && (
           <section className="profile-section" aria-labelledby="dimensions-title">
             <div className="section-heading">
               <h2 id="dimensions-title">Six dimensions</h2>
-              <p>Scores describe preferences, not whether someone is a good or bad roommate.</p>
+              <p>Qualitative levels describe preferences, not roommate quality.</p>
             </div>
             <div className="dimension-grid">
               {dimensions.map(([id, dimension]) => (
@@ -406,11 +404,7 @@ function CompletionView({ session, loading, onRestart, error }: { session: Quest
                   <div className="dimension-heading">
                     <h3>{DIMENSION_LABELS[id] ?? id.replaceAll("_", " ")}</h3>
                   </div>
-                  <div className="score-row">
-                    <span className="score-label">{dimension.label ?? "Not yet defined"}</span>
-                    {typeof dimension.score === "number" && <strong>{dimension.score}/100</strong>}
-                  </div>
-                  <div className="score-track" aria-hidden="true"><span style={{ width: `${Math.max(0, Math.min(100, dimension.score ?? 0))}%` }} /></div>
+                  <div className="level-pill">{preferenceLevel(dimension.label)}</div>
                   {dimension.summary && <p>{dimension.summary}</p>}
                   {dimension.unknowns?.length > 0 && <p className="uncertainty">Open question: {dimension.unknowns[0]}</p>}
                 </article>
@@ -418,6 +412,11 @@ function CompletionView({ session, loading, onRestart, error }: { session: Quest
             </div>
           </section>
         )}
+        <section className="summary-card" aria-labelledby="summary-title">
+          <p className="kicker">AI SUMMARY</p>
+          <h2 id="summary-title">How you prefer to live</h2>
+          <p>{session.final_summary || "Your profile summary is ready."}</p>
+        </section>
         {error && <ErrorNotice message={error} />}
         <button className="button button-secondary button-wide" onClick={onRestart} disabled={loading}>{loading ? "Starting over..." : "Start a new profile"}</button>
       </div>

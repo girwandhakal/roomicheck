@@ -4,7 +4,7 @@ import argparse
 import json
 from pathlib import Path
 
-from .ai_provider import GeminiProvider, ResilientAI
+from .ai_provider import OpenAIProvider, ResilientAI
 from .config import DIMENSION_LABELS, load_env_files
 from .questionnaire import ConsoleAnswerSource, DemoAnswerSource, QuestionnaireEngine
 from .storage import save_feedback, save_profile
@@ -51,7 +51,7 @@ def render_profile(profile_dict: dict, telemetry: dict) -> None:
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Generate an AI-native RoomiCheck co-living profile.")
     parser.add_argument("--demo", action="store_true", help="Run the prepared, non-sensitive demonstration scenario.")
-    parser.add_argument("--offline", action="store_true", help="Disable Gemini and exercise the continuity path.")
+    parser.add_argument("--offline", action="store_true", help="Disable OpenAI and exercise the continuity path.")
     parser.add_argument("--no-save", action="store_true", help="Do not save the generated profile.")
     parser.add_argument("--json", action="store_true", help="Print the full profile JSON after the summary.")
     parser.add_argument("--feedback", action="store_true", help="Prompt for an anonymous profile-accuracy rating.")
@@ -62,7 +62,7 @@ def build_parser() -> argparse.ArgumentParser:
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     load_env_files()
-    primary = GeminiProvider(api_key="") if args.offline else GeminiProvider()
+    primary = OpenAIProvider(api_key="") if args.offline else OpenAIProvider()
     ai = ResilientAI(primary=primary)
     engine = QuestionnaireEngine(ai=ai)
     source = DemoAnswerSource() if args.demo else ConsoleAnswerSource()
@@ -71,7 +71,7 @@ def main(argv: list[str] | None = None) -> int:
     if ai.ai_available:
         print(f"Mode: AI primary ({ai.provider_name}) with guarded fallback")
     else:
-        print("Mode: Resilient offline fallback (Gemini unavailable or disabled)")
+        print("Mode: Resilient offline fallback (OpenAI unavailable or disabled)")
     print("Privacy: identifiers are redacted; sensitive topics are withheld from AI.")
     if args.demo:
         print("Demo: using a prepared synthetic student scenario.")
@@ -99,4 +99,3 @@ def main(argv: list[str] | None = None) -> int:
             print(f"Anonymous feedback saved: {feedback_path}")
 
     return 0
-

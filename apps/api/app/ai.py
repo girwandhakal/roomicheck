@@ -12,7 +12,7 @@ import urllib.request
 from dataclasses import dataclass
 from typing import Any, Literal, Protocol
 
-from pydantic import BaseModel, ConfigDict, Field, ValidationError
+from pydantic import BaseModel, ConfigDict, Field, PrivateAttr, ValidationError
 
 from roomicheck.v2.config import DIMENSION_IDS
 from .prompts import ADAPT_PROMPT, EXTRACT_PROMPT, SUMMARY_PROMPT
@@ -31,8 +31,8 @@ class StrictModel(BaseModel):
 
 class ExtractionDimension(StrictModel):
     dimension: str
-    label: Literal["low", "moderate", "high"]
-    confidence: float = Field(ge=0, le=1)
+    label: Literal["very_low", "low", "moderate", "high", "very_high"]
+    confidence: Literal["low", "moderate", "high"]
     weight: float = Field(default=0.5, ge=0.2, le=1)
     supporting_quote: str = Field(min_length=1, max_length=500)
     summary: str = Field(min_length=1, max_length=400)
@@ -41,6 +41,7 @@ class ExtractionDimension(StrictModel):
     preference_strength_known: bool = False
     scenario_evidence: bool = False
     contradiction_response_ids: list[str] = Field(default_factory=list, max_length=4)
+    _score_override: int | None = PrivateAttr(default=None)
 
 
 class ExtractionResult(StrictModel):
@@ -63,7 +64,26 @@ class AdaptiveProvider(Protocol):
     def summarize(self, payload: dict[str, Any]) -> SummaryResult: ...
 
 
-LABEL_TO_SCORE = {"low": 20, "moderate": 50, "high": 80}
+LABEL_TO_SCORE = {"very_low": 10, "low": 20, "moderate": 50, "high": 80, "very_high": 90}
+CONFIDENCE_TO_SCORE = {"low": 0.4, "moderate": 0.65, "high": 0.9}
+
+
+def _strict_schema(model: type[StrictModel]) -> dict[str, Any]:
+    """Make Pydantic defaulted fields explicit for strict JSON-schema output."""
+    schema = model.model_json_schema()
+
+    def normalize(node: Any) -> None:
+        if not isinstance(node, dict):
+            return
+        properties = node.get("properties")
+        if isinstance(properties, dict):
+            node["required"] = list(properties)
+        for value in node.values():
+            if isinstance(value, (dict, list)):
+                normalize(value)
+
+    normalize(schema)
+    return schema
 
 
 @dataclass
@@ -85,7 +105,7 @@ class FallbackAdaptiveProvider:
                 ExtractionDimension(
                     dimension=dimension,
                     label="moderate",
-                    confidence=0.55,
+                    confidence="moderate",
                     weight=0.5,
                     supporting_quote=answer[:500],
                     summary="A response was recorded for this co-living dimension.",
@@ -105,30 +125,36 @@ class FallbackAdaptiveProvider:
         return SummaryResult(summary="RoomiCheck recorded evidence across the co-living profile.")
 
 
-class GeminiAdaptiveProvider:
-    """Minimal REST adapter for Gemini Interactions structured output."""
+class OpenAIAdaptiveProvider:
+    """Minimal REST adapter for OpenAI Responses API structured output."""
 
     name: str
 
     def __init__(self, api_key: str, model: str, timeout_seconds: float = 30.0) -> None:
         self.api_key, self.model, self.timeout_seconds = api_key, model, timeout_seconds
-        self.name = f"gemini:{model}"
+        self.name = f"openai:{model}"
 
     def _request(self, instruction: str, payload: dict[str, Any], result_type: type[StrictModel]) -> StrictModel:
         body = {
-            "model": self.model.removeprefix("models/"),
+            "model": self.model,
             "input": instruction + "\n\nINPUT:\n" + json.dumps(payload, separators=(",", ":")),
-            "generation_config": {"temperature": 0.1},
-            "response_format": {
-                "type": "text",
-                "mime_type": "application/json",
-                "schema": result_type.model_json_schema(),
+            "text": {
+                "format": {
+                    "type": "json_schema",
+                    "name": result_type.__name__.lower(),
+                    "strict": True,
+                    "schema": _strict_schema(result_type),
+                },
             },
         }
         request = urllib.request.Request(
-            "https://generativelanguage.googleapis.com/v1beta/interactions",
+            "https://api.openai.com/v1/responses",
             data=json.dumps(body).encode("utf-8"),
-            headers={"x-goog-api-key": self.api_key, "Content-Type": "application/json"},
+            headers={
+                "Authorization": f"Bearer {self.api_key}",
+                "Content-Type": "application/json",
+                "Accept": "application/json",
+            },
             method="POST",
         )
         for attempt in range(3):
@@ -138,10 +164,10 @@ class GeminiAdaptiveProvider:
                 text = raw.get("output_text")
                 if not isinstance(text, str):
                     parts: list[str] = []
-                    for step in raw.get("steps", []):
-                        if isinstance(step, dict):
-                            for content in step.get("content", []):
-                                if isinstance(content, dict) and content.get("type") == "text" and isinstance(content.get("text"), str):
+                    for item in raw.get("output", []):
+                        if isinstance(item, dict):
+                            for content in item.get("content", []):
+                                if isinstance(content, dict) and content.get("type") in {"output_text", "text"} and isinstance(content.get("text"), str):
                                     parts.append(content["text"])
                     text = "\n".join(parts) if parts else None
                 if not isinstance(text, str):

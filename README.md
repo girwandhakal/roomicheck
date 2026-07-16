@@ -7,18 +7,18 @@ The current milestone generates a six-dimension co-living profile. It asks targe
 ## What It Does
 
 - Uses five versioned scenarios covering cleanliness, sleep and study habits, guests, boundaries, and conflict communication.
-- Treats Gemini as an adaptive interviewer: it interprets answers, extracts evidence-backed traits, and words targeted follow-ups; deterministic backend code owns scoring, coverage, and completion.
+- Treats OpenAI as an adaptive interviewer: it interprets answers, extracts evidence-backed traits, and words targeted follow-ups; deterministic backend code owns scoring, coverage, and completion.
 - Returns structured 1-5 scores with confidence, evidence, preferences, explicit dealbreakers, and unresolved questions.
 - Redacts common identifiers and withholds sensitive-topic responses before any AI request.
 - Validates all AI dimensions, score ranges, confidence values, and output fields.
-- Completes the questionnaire with deterministic scoring and curated follow-ups when Gemini is unavailable.
+- Completes the questionnaire with deterministic scoring and curated follow-ups when OpenAI is unavailable.
 - Saves versioned JSON profiles locally and can capture anonymous accuracy feedback.
 
 ## Requirements
 
 - Python 3.11
 - `uv`
-- A Gemini API key for live AI mode
+- An OpenAI API key for live AI mode
 
 No third-party Python runtime packages are required.
 
@@ -28,8 +28,8 @@ Create `.env.local` from `.env.example` in `apps/api` and `apps/web`.
 A valid `DATABASE_URL` is required for Supabase persistence.
 
 ```env
-GEMINI_API_KEY="your-key"
-GEMINI_MODEL="gemini-3.5-flash"
+OPENAI_API_KEY="your-key"
+OPENAI_MODEL="gpt-4o-mini"
 DATABASE_URL="postgresql://..."
 ```
 
@@ -88,7 +88,7 @@ uv run python -m unittest discover -s tests -v
 
 ```text
 questionnaire/             Versioned questions, scoring anchors, fallbacks
-roomicheck/ai_provider.py  Gemini Interactions API and resilient routing
+roomicheck/ai_provider.py  OpenAI Responses API and resilient routing
 roomicheck/privacy.py      Identifier redaction and sensitive-topic controls
 roomicheck/scoring.py      Deterministic anchors and profile synthesis
 roomicheck/models.py       Validated domain and profile contracts

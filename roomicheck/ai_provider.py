@@ -12,15 +12,16 @@ from typing import Any
 from .config import DIMENSIONS, load_fallback_followups, load_scoring_rules
 from .models import AnswerRecord, ScoreContribution, TurnAnalysis
 
-DEFAULT_URL = "https://generativelanguage.googleapis.com/v1beta/interactions"
-DEFAULT_MODEL = "gemini-3.5-flash"
+DEFAULT_URL = "https://api.openai.com/v1/responses"
+DEFAULT_MODEL = "gpt-4o-mini"
+CONFIDENCE_TO_SCORE = {"low": 0.4, "moderate": 0.65, "high": 0.9}
 
 CONTRIBUTION_SCHEMA = {
     "type": "object",
     "properties": {
         "dimension": {"type": "string", "enum": list(DIMENSIONS)},
         "score": {"type": "integer", "minimum": 1, "maximum": 5},
-        "confidence": {"type": "number", "minimum": 0, "maximum": 1},
+        "confidence": {"type": "string", "enum": list(CONFIDENCE_TO_SCORE)},
         "evidence": {"type": "string"},
     },
     "required": ["dimension", "score", "confidence", "evidence"],
@@ -55,7 +56,7 @@ DIMENSION_RESULT_SCHEMA = {
     "properties": {
         "dimension": {"type": "string", "enum": list(DIMENSIONS)},
         "score": {"type": "integer", "minimum": 1, "maximum": 5},
-        "confidence": {"type": "number", "minimum": 0, "maximum": 1},
+        "confidence": {"type": "string", "enum": list(CONFIDENCE_TO_SCORE)},
         "evidence": {"type": "array", "items": {"type": "string"}, "minItems": 1},
         "preferences": {"type": "array", "items": {"type": "string"}},
     },
@@ -92,14 +93,14 @@ def _extract_output_text(payload: dict[str, Any]) -> str:
     if isinstance(output_text, str) and output_text.strip():
         return output_text.strip()
     collected: list[str] = []
-    for step in payload.get("steps", []):
-        if not isinstance(step, dict):
+    for item in payload.get("output", []):
+        if not isinstance(item, dict):
             continue
-        for item in step.get("content", []):
-            if isinstance(item, dict) and item.get("type") == "text" and isinstance(item.get("text"), str):
-                collected.append(item["text"])
+        for content in item.get("content", []):
+            if isinstance(content, dict) and content.get("type") in {"output_text", "text"} and isinstance(content.get("text"), str):
+                collected.append(content["text"])
     if not collected:
-        raise ProviderError("Gemini returned no text output", code="empty_response")
+        raise ProviderError("OpenAI returned no text output", code="empty_response")
     return "\n".join(collected).strip()
 
 
@@ -114,8 +115,8 @@ def _clean_strings(values: Any, *, limit: int = 8) -> list[str]:
     return list(dict.fromkeys(cleaned))
 
 
-class GeminiProvider:
-    """Small REST client for Gemini's Interactions API with structured outputs."""
+class OpenAIProvider:
+    """Small REST client for OpenAI Responses API structured outputs."""
 
     def __init__(
         self,
@@ -125,8 +126,8 @@ class GeminiProvider:
         timeout: float = 45.0,
         max_retries: int = 1,
     ) -> None:
-        self.api_key = (api_key if api_key is not None else os.getenv("GEMINI_API_KEY", "")).strip()
-        self.model = model or os.getenv("GEMINI_MODEL", DEFAULT_MODEL)
+        self.api_key = (api_key if api_key is not None else os.getenv("OPENAI_API_KEY", "")).strip()
+        self.model = model or os.getenv("OPENAI_MODEL", DEFAULT_MODEL)
         self.url = url
         self.timeout = timeout
         self.max_retries = max_retries
@@ -137,27 +138,29 @@ class GeminiProvider:
 
     @property
     def name(self) -> str:
-        return f"gemini:{self.model}"
+        return f"openai:{self.model}"
 
     def _request_json(self, prompt: str, schema: dict[str, Any], temperature: float) -> dict[str, Any]:
         if not self.available:
-            raise ProviderError("GEMINI_API_KEY is not configured", code="missing_api_key")
+            raise ProviderError("OPENAI_API_KEY is not configured", code="missing_api_key")
 
         payload = {
             "model": self.model,
             "input": prompt,
-            "generation_config": {"temperature": temperature},
-            "response_format": {
-                "type": "text",
-                "mime_type": "application/json",
-                "schema": schema,
+            "text": {
+                "format": {
+                    "type": "json_schema",
+                    "name": "roomicheck_output",
+                    "strict": True,
+                    "schema": schema,
+                },
             },
         }
         request = urllib.request.Request(
             self.url,
             data=json.dumps(payload).encode("utf-8"),
             headers={
-                "x-goog-api-key": self.api_key,
+                "Authorization": f"Bearer {self.api_key}",
                 "Content-Type": "application/json",
                 "Accept": "application/json",
                 "User-Agent": "RoomiCheck/0.2",
@@ -171,7 +174,7 @@ class GeminiProvider:
                     response_payload = json.loads(response.read().decode("utf-8"))
                 output = json.loads(_extract_output_text(response_payload))
                 if not isinstance(output, dict):
-                    raise ProviderError("Gemini output was not a JSON object", code="invalid_json")
+                    raise ProviderError("OpenAI output was not a JSON object", code="invalid_json")
                 return output
             except urllib.error.HTTPError as error:
                 body = error.read().decode("utf-8", errors="replace")[:500]
@@ -180,15 +183,15 @@ class GeminiProvider:
                     time.sleep(0.5 * (2**attempt))
                     continue
                 code = "quota_exhausted" if error.code == 429 else f"http_{error.code}"
-                raise ProviderError(f"Gemini request failed ({error.code}): {body}", code=code, retryable=retryable) from error
+                raise ProviderError(f"OpenAI request failed ({error.code}): {body}", code=code, retryable=retryable) from error
             except (urllib.error.URLError, TimeoutError) as error:
                 if attempt < self.max_retries:
                     time.sleep(0.5 * (2**attempt))
                     continue
-                raise ProviderError(f"Gemini could not be reached: {error}", code="network_error", retryable=True) from error
+                raise ProviderError(f"OpenAI could not be reached: {error}", code="network_error", retryable=True) from error
             except json.JSONDecodeError as error:
-                raise ProviderError("Gemini returned malformed JSON", code="invalid_json") from error
-        raise ProviderError("Gemini request failed", code="provider_error")
+                raise ProviderError("OpenAI returned malformed JSON", code="invalid_json") from error
+        raise ProviderError("OpenAI request failed", code="provider_error")
 
     def healthcheck(self) -> dict[str, Any]:
         schema = {
@@ -249,14 +252,14 @@ class GeminiProvider:
                 raise ProviderError("AI scored an unauthorized or duplicate dimension", code="semantic_validation")
             if isinstance(score, bool) or not isinstance(score, int) or not 1 <= score <= 5:
                 raise ProviderError("AI score was out of bounds", code="semantic_validation")
-            if isinstance(confidence, bool) or not isinstance(confidence, (int, float)) or not 0 <= confidence <= 1:
-                raise ProviderError("AI confidence was out of bounds", code="semantic_validation")
+            if confidence not in CONFIDENCE_TO_SCORE:
+                raise ProviderError("AI confidence level was invalid", code="semantic_validation")
             if not isinstance(evidence, str) or not evidence.strip():
                 raise ProviderError("AI evidence was empty", code="semantic_validation")
             contribution = ScoreContribution(
                 dimension=dimension,
                 score=score,
-                confidence=float(confidence),
+                confidence=CONFIDENCE_TO_SCORE[confidence],
                 evidence=evidence.strip()[:300],
                 source="ai_interpretation",
                 question_id=answer.question_id,
@@ -290,13 +293,15 @@ class GeminiProvider:
         prompt = (
             "Synthesize a RoomiCheck co-living profile from the validated evidence. Return every dimension exactly once. "
             "Use deterministic anchors as stable facts and AI interpretations for nuance. Do not infer protected traits or facts absent "
-            "from the evidence. Lower confidence when evidence is sparse or contradictory. Each evidence item must be grounded in the "
+            "from the evidence. Return confidence as low, moderate, or high rather than a numeric calculation. Each evidence item must be grounded in the "
             "provided contributions. Scores describe preferences, not quality or desirability.\n\n"
             f"Dimension scales:\n{json.dumps(scales, indent=2)}\n\n"
             f"Validated evidence:\n{json.dumps(evidence, indent=2)}"
         )
         payload = self._request_json(prompt, PROFILE_SCHEMA, temperature=0.2)
         self._validate_profile_payload(payload)
+        for item in payload["dimensions"]:
+            item["confidence"] = CONFIDENCE_TO_SCORE[item["confidence"]]
         return payload
 
     @staticmethod
@@ -315,8 +320,8 @@ class GeminiProvider:
                 raise ProviderError("AI profile contained duplicate or unknown dimensions", code="semantic_validation")
             if isinstance(score, bool) or not isinstance(score, int) or not 1 <= score <= 5:
                 raise ProviderError("AI profile score was out of bounds", code="semantic_validation")
-            if isinstance(confidence, bool) or not isinstance(confidence, (int, float)) or not 0 <= confidence <= 1:
-                raise ProviderError("AI profile confidence was out of bounds", code="semantic_validation")
+            if confidence not in CONFIDENCE_TO_SCORE:
+                raise ProviderError("AI profile confidence level was invalid", code="semantic_validation")
             _clean_strings(item.get("evidence", []), limit=5)
             _clean_strings(item.get("preferences", []), limit=5)
             seen.add(dimension)
@@ -401,8 +406,8 @@ class FallbackProvider:
 
 
 class ResilientAI:
-    def __init__(self, primary: GeminiProvider | None = None, fallback: FallbackProvider | None = None) -> None:
-        self.primary = primary or GeminiProvider()
+    def __init__(self, primary: OpenAIProvider | None = None, fallback: FallbackProvider | None = None) -> None:
+        self.primary = primary or OpenAIProvider()
         self.fallback = fallback or FallbackProvider()
         self.fallback_count = 0
         self.errors: list[str] = []

@@ -1,6 +1,6 @@
 import unittest
 
-from roomicheck.ai_provider import GeminiProvider, ResilientAI
+from roomicheck.ai_provider import OpenAIProvider, ResilientAI
 from roomicheck.config import DIMENSIONS, load_questions
 from roomicheck.questionnaire import DemoAnswerSource, QuestionnaireEngine
 
@@ -12,7 +12,7 @@ class QuestionnaireIntegrationTests(unittest.TestCase):
             self.assertGreaterEqual(len(question["options"]), 2)
 
     def test_offline_demo_completes_with_a_valid_profile(self) -> None:
-        ai = ResilientAI(primary=GeminiProvider(api_key=""))
+        ai = ResilientAI(primary=OpenAIProvider(api_key=""))
         engine = QuestionnaireEngine(ai=ai)
         output: list[str] = []
 
@@ -29,7 +29,7 @@ class QuestionnaireIntegrationTests(unittest.TestCase):
             self.assertTrue(dimension["evidence"])
 
     def test_demo_free_text_is_scored_by_continuity_rules(self) -> None:
-        ai = ResilientAI(primary=GeminiProvider(api_key=""))
+        ai = ResilientAI(primary=OpenAIProvider(api_key=""))
         session = QuestionnaireEngine(ai=ai).run(DemoAnswerSource(), emit=lambda _: None)
 
         sleep = session.profile.dimensions["studying_and_sleep_habits"]
@@ -37,7 +37,7 @@ class QuestionnaireIntegrationTests(unittest.TestCase):
         self.assertGreater(sleep.confidence, 0.4)
 
     def test_preferences_and_dealbreakers_are_semantically_scoped(self) -> None:
-        ai = ResilientAI(primary=GeminiProvider(api_key=""))
+        ai = ResilientAI(primary=OpenAIProvider(api_key=""))
         session = QuestionnaireEngine(ai=ai).run(DemoAnswerSource(), emit=lambda _: None)
 
         cleanliness = session.profile.dimensions["living_and_cleanliness"]

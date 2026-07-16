@@ -10,7 +10,7 @@ import os
 
 import pytest
 
-from app.ai import AdaptedQuestion, ExtractionResult, GeminiAdaptiveProvider, SummaryResult
+from app.ai import AdaptedQuestion, ExtractionResult, OpenAIAdaptiveProvider, SummaryResult
 from app.config import get_settings
 
 
@@ -22,12 +22,12 @@ pytestmark = pytest.mark.skipif(
 
 def test_live_provider_returns_all_stage2_contracts() -> None:
     settings = get_settings()
-    if not settings.gemini_api_key:
-        pytest.skip("GEMINI_API_KEY is not configured")
+    if not settings.openai_api_key:
+        pytest.skip("OPENAI_API_KEY is not configured")
 
-    provider = GeminiAdaptiveProvider(
-        settings.gemini_api_key,
-        settings.gemini_model,
+    provider = OpenAIAdaptiveProvider(
+        settings.openai_api_key,
+        settings.openai_model,
         settings.ai_timeout_seconds,
     )
     extraction = provider.extract(
@@ -66,7 +66,7 @@ def test_live_provider_returns_all_stage2_contracts() -> None:
             "dimensions": {
                 "household_structure": {
                     "label": "high",
-                    "confidence": 0.85,
+                    "confidence": "high",
                     "summary": "Prefers explicit shared-home routines.",
                 }
             },

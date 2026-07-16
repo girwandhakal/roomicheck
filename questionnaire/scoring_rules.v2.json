@@ -3,10 +3,10 @@
   "scales": {},
   "options": {
     "noise_focus_preference": {
-      "quiet": {"noise_environment": {"score": 20, "label": "low", "confidence": 0.95, "summary": "Strongly prefers a quiet environment for focus."}},
-      "headphones": {"noise_environment": {"score": 45, "label": "moderate", "confidence": 0.95, "summary": "Can accommodate noise when it is contained."}},
-      "background": {"noise_environment": {"score": 80, "label": "high", "confidence": 0.95, "summary": "Usually tolerates ordinary background noise."}},
-      "elsewhere": {"noise_environment": {"score": 30, "label": "low", "confidence": 0.95, "summary": "Prefers changing location when the environment is noisy."}}
+      "quiet": {"noise_environment": {"score": 20, "label": "low", "confidence": 0.95, "summary": "Strongly prefers a quiet environment for focus."}, "study_daily_routine": {"score": 85, "label": "high", "confidence": 0.8, "summary": "Needs protected focus conditions to stay on track."}},
+      "headphones": {"noise_environment": {"score": 45, "label": "moderate", "confidence": 0.95, "summary": "Can accommodate noise when it is contained."}, "study_daily_routine": {"score": 65, "label": "moderate", "confidence": 0.8, "summary": "Can focus when a practical adjustment protects study time."}},
+      "background": {"noise_environment": {"score": 80, "label": "high", "confidence": 0.95, "summary": "Usually tolerates ordinary background noise."}, "study_daily_routine": {"score": 25, "label": "low", "confidence": 0.8, "summary": "Study focus is not strongly dependent on a quiet shared room."}},
+      "elsewhere": {"noise_environment": {"score": 30, "label": "low", "confidence": 0.95, "summary": "Prefers changing location when the environment is noisy."}, "study_daily_routine": {"score": 55, "label": "moderate", "confidence": 0.8, "summary": "Protects productivity by adapting where they work."}}
     },
     "noise_sleep_preference": {
       "silent": {"noise_environment": {"score": 20, "label": "low", "confidence": 0.95, "summary": "Needs very quiet conditions to settle down."}},
@@ -33,10 +33,10 @@
       "variable": {"study_daily_routine": {"score": 20, "label": "low", "confidence": 0.95, "summary": "Can accommodate significant schedule variation."}}
     },
     "routine_conflict": {
-      "protect_quiet": {"study_daily_routine": {"score": 80, "label": "high", "confidence": 0.95, "summary": "Needs explicit quiet protections around early mornings."}},
-      "adjust": {"study_daily_routine": {"score": 55, "label": "moderate", "confidence": 0.95, "summary": "Prefers mutual adjustments when routines conflict."}},
-      "separate_spaces": {"study_daily_routine": {"score": 65, "label": "moderate", "confidence": 0.95, "summary": "Uses separate spaces to protect routine needs."}},
-      "case_by_case": {"study_daily_routine": {"score": 25, "label": "low", "confidence": 0.95, "summary": "Can handle routine conflicts situationally."}}
+      "protect_quiet": {"study_daily_routine": {"score": 80, "label": "high", "confidence": 0.95, "summary": "Needs explicit quiet protections around early mornings."}, "communication_conflict": {"score": 65, "label": "moderate", "confidence": 0.8, "summary": "Prefers a clear agreement to prevent routine conflicts."}},
+      "adjust": {"study_daily_routine": {"score": 55, "label": "moderate", "confidence": 0.95, "summary": "Prefers mutual adjustments when routines conflict."}, "communication_conflict": {"score": 75, "label": "high", "confidence": 0.8, "summary": "Approaches routine conflicts through mutual compromise."}},
+      "separate_spaces": {"study_daily_routine": {"score": 65, "label": "moderate", "confidence": 0.95, "summary": "Uses separate spaces to protect routine needs."}, "communication_conflict": {"score": 45, "label": "moderate", "confidence": 0.8, "summary": "Reduces friction by creating practical space boundaries."}},
+      "case_by_case": {"study_daily_routine": {"score": 25, "label": "low", "confidence": 0.95, "summary": "Can handle routine conflicts situationally."}, "communication_conflict": {"score": 55, "label": "moderate", "confidence": 0.8, "summary": "Prefers deciding how to discuss routine conflicts as they arise."}}
     },
     "culture_different_routines": {
       "curious": {"cultural_openness": {"score": 80, "label": "high", "confidence": 0.95, "summary": "Responds to unfamiliar routines with curiosity."}},
@@ -45,10 +45,10 @@
       "unsure": {"cultural_openness": {"score": 35, "label": "moderate", "confidence": 0.95, "summary": "Needs time to understand unfamiliar routines."}}
     },
     "culture_misunderstanding": {
-      "talk": {"cultural_openness": {"score": 80, "label": "high", "confidence": 0.95, "summary": "Prefers open discussion when routines differ."}},
-      "pause": {"cultural_openness": {"score": 55, "label": "moderate", "confidence": 0.95, "summary": "Prefers a pause before discussing a misunderstanding."}},
-      "agreement": {"cultural_openness": {"score": 60, "label": "moderate", "confidence": 0.95, "summary": "Uses shared agreements to navigate differences."}},
-      "mediation": {"cultural_openness": {"score": 50, "label": "moderate", "confidence": 0.95, "summary": "Would welcome structured support during a misunderstanding."}}
+      "talk": {"cultural_openness": {"score": 80, "label": "high", "confidence": 0.95, "summary": "Prefers open discussion when routines differ."}, "communication_conflict": {"score": 80, "label": "high", "confidence": 0.8, "summary": "Feels comfortable addressing misunderstandings directly."}},
+      "pause": {"cultural_openness": {"score": 55, "label": "moderate", "confidence": 0.95, "summary": "Prefers a pause before discussing a misunderstanding."}, "communication_conflict": {"score": 35, "label": "moderate", "confidence": 0.8, "summary": "Prefers time to cool down before a difficult conversation."}},
+      "agreement": {"cultural_openness": {"score": 60, "label": "moderate", "confidence": 0.95, "summary": "Uses shared agreements to navigate differences."}, "communication_conflict": {"score": 60, "label": "moderate", "confidence": 0.8, "summary": "Uses shared agreements to structure a difficult conversation."}},
+      "mediation": {"cultural_openness": {"score": 50, "label": "moderate", "confidence": 0.95, "summary": "Would welcome structured support during a misunderstanding."}, "communication_conflict": {"score": 45, "label": "moderate", "confidence": 0.8, "summary": "Prefers supported or facilitated communication when tensions rise."}}
     },
     "household_agreement_style": {
       "schedule": {"household_structure": {"score": 80, "label": "high", "confidence": 0.95, "summary": "Feels relaxed with regular chore schedules."}},
@@ -63,10 +63,10 @@
       "case_by_case": {"household_structure": {"score": 50, "label": "moderate", "confidence": 0.95, "summary": "Prefers deciding about shared supplies item by item."}}
     },
     "conflict_kitchen": {
-      "direct_now": {"communication_conflict": {"score": 80, "label": "high", "confidence": 0.95, "summary": "Prefers raising repeated household issues directly and soon."}},
-      "cool_off": {"communication_conflict": {"score": 35, "label": "moderate", "confidence": 0.95, "summary": "Prefers time to cool off before discussing conflict."}},
-      "message": {"communication_conflict": {"score": 50, "label": "moderate", "confidence": 0.95, "summary": "Feels more comfortable beginning difficult conversations by message."}},
-      "meeting": {"communication_conflict": {"score": 75, "label": "high", "confidence": 0.95, "summary": "Prefers setting aside time to resolve a household issue."}}
+      "direct_now": {"communication_conflict": {"score": 80, "label": "high", "confidence": 0.95, "summary": "Prefers raising repeated household issues directly and soon."}, "household_structure": {"score": 80, "label": "high", "confidence": 0.8, "summary": "Expects shared household responsibilities to be addressed clearly."}},
+      "cool_off": {"communication_conflict": {"score": 35, "label": "moderate", "confidence": 0.95, "summary": "Prefers time to cool off before discussing conflict."}, "household_structure": {"score": 70, "label": "high", "confidence": 0.8, "summary": "Still expects a recurring household issue to be resolved."}},
+      "message": {"communication_conflict": {"score": 50, "label": "moderate", "confidence": 0.95, "summary": "Feels more comfortable beginning difficult conversations by message."}, "household_structure": {"score": 70, "label": "high", "confidence": 0.8, "summary": "Wants a clear written way to address shared responsibilities."}},
+      "meeting": {"communication_conflict": {"score": 75, "label": "high", "confidence": 0.95, "summary": "Prefers setting aside time to resolve a household issue."}, "household_structure": {"score": 80, "label": "high", "confidence": 0.8, "summary": "Values a planned conversation to restore shared household standards."}}
     },
     "conflict_timing_preference": {
       "immediate": {"communication_conflict": {"score": 80, "label": "high", "confidence": 0.95, "summary": "Prefers clearing up smaller concerns promptly."}},

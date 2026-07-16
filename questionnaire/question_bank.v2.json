@@ -96,7 +96,7 @@
       "prompt": "Your roommate's weekday schedule is pretty different from yours. Which routine would be easiest for you to live alongside?",
       "question_type": "single_choice",
       "primary_dimension": "study_daily_routine",
-      "secondary_dimensions": ["noise_environment"],
+      "secondary_dimensions": [],
       "options": [
         {"id": "early", "label": "Early nights and early mornings work best for me."},
         {"id": "standard", "label": "A mostly daytime schedule feels natural to me."},
