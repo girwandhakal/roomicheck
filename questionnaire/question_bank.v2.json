@@ -4,7 +4,7 @@
     {
       "id": "seed_open_ideal_coliving",
       "version": "v2",
-      "prompt": "Tell us about yourself—anything and everything you’d like us to know so we can create the best roommate match for you.",
+      "prompt": "Tell us about yourself—anything and everything you’d like us to know so we can create the most accurate co-living profile for you.",
       "question_type": "free_text",
       "primary_dimension": null,
       "secondary_dimensions": [],
