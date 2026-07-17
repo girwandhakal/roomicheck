@@ -362,18 +362,19 @@ textarea:hover { border-color: var(--ink); }
   html, body { overflow-x: hidden; }
 
   .questionnaire-shell {
-    height: 100dvh;
     min-height: 100dvh;
+    height: auto;
+    overflow: visible;
     padding: 16px;
   }
 
-  .questionnaire-shell .content-column { height: 100%; }
+  .questionnaire-shell .content-column { height: auto; min-height: calc(100dvh - 32px); }
   .questionnaire-shell .progress-block { margin: 24px 0 28px; }
-  .questionnaire-shell .question-panel { flex: 1 1 auto; overflow: visible; }
+  .questionnaire-shell .question-panel { flex: none; overflow: visible; }
   .questionnaire-shell .question-panel h1 { max-width: 100%; }
-  .questionnaire-shell .question-panel form { margin-top: 18px; }
+  .questionnaire-shell .question-panel form { margin-top: 18px; flex: none; }
   .questionnaire-shell .field-group,
-  .questionnaire-shell .choice-fieldset { margin: 14px 0; }
+  .questionnaire-shell .choice-fieldset { margin: 14px 0; flex: none; }
   .questionnaire-shell .form-footer { margin-top: 18px; }
 }
 
