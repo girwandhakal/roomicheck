@@ -64,33 +64,52 @@ export class ApiError extends Error {
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000/api/v1";
 const REQUEST_TIMEOUT_MS = 90_000;
+const RETRY_DELAY_MS = 700;
 
-async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  const controller = new AbortController();
-  const timeout = window.setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
-  const abortFromCaller = () => controller.abort();
-  init?.signal?.addEventListener("abort", abortFromCaller, { once: true });
-  try {
-    const response = await fetch(`${API_URL}${path}`, {
-      ...init,
-      signal: controller.signal,
-      headers: { "Content-Type": "application/json", ...init?.headers },
-    });
-    if (!response.ok) {
-      const payload = (await response.json().catch(() => null)) as { detail?: string } | null;
-      throw new ApiError(response.status, payload?.detail ?? "RoomiCheck could not complete that request.");
+async function request<T>(path: string, init?: RequestInit, retryAttempts = 0): Promise<T> {
+  for (let attempt = 0; attempt <= retryAttempts; attempt += 1) {
+    const controller = new AbortController();
+    const timeout = window.setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+    const abortFromCaller = () => controller.abort();
+    init?.signal?.addEventListener("abort", abortFromCaller, { once: true });
+    try {
+      const response = await fetch(`${API_URL}${path}`, {
+        ...init,
+        signal: controller.signal,
+        // Avoid unnecessary preflights for GET requests. JSON POSTs still use
+        // the configured CORS preflight, but answer submission can retry safely
+        // because it carries one idempotency key for the whole request.
+        headers: init?.body
+          ? { "Content-Type": "application/json", ...init.headers }
+          : init?.headers,
+      });
+      if (!response.ok) {
+        const payload = (await response.json().catch(() => null)) as { detail?: string } | null;
+        const error = new ApiError(response.status, payload?.detail ?? "RoomiCheck could not complete that request.");
+        if (attempt < retryAttempts && [408, 429, 500, 502, 503, 504].includes(response.status)) {
+          await new Promise((resolve) => window.setTimeout(resolve, RETRY_DELAY_MS * (attempt + 1)));
+          continue;
+        }
+        throw error;
+      }
+      if (response.status === 204) return undefined as T;
+      return response.json() as Promise<T>;
+    } catch (error) {
+      if (error instanceof DOMException && error.name === "AbortError") {
+        throw new ApiError(408, "The request took too long. Please try again.");
+      }
+      if (attempt < retryAttempts && !(error instanceof ApiError)) {
+        await new Promise((resolve) => window.setTimeout(resolve, RETRY_DELAY_MS * (attempt + 1)));
+        continue;
+      }
+      if (error instanceof ApiError) throw error;
+      throw new ApiError(0, "We could not reach RoomiCheck. Check your connection and try again.");
+    } finally {
+      window.clearTimeout(timeout);
+      init?.signal?.removeEventListener("abort", abortFromCaller);
     }
-    if (response.status === 204) return undefined as T;
-    return response.json() as Promise<T>;
-  } catch (error) {
-    if (error instanceof DOMException && error.name === "AbortError") {
-      throw new ApiError(408, "The request took too long. Please try again.");
-    }
-    throw error;
-  } finally {
-    window.clearTimeout(timeout);
-    init?.signal?.removeEventListener("abort", abortFromCaller);
   }
+  throw new ApiError(0, "We could not reach RoomiCheck. Check your connection and try again.");
 }
 
 export function startSession(): Promise<QuestionnaireSession> {
@@ -102,14 +121,17 @@ export function getSession(sessionId: string): Promise<QuestionnaireSession> {
 }
 
 export function submitAnswer(sessionId: string, questionId: string, answer: AnswerValue): Promise<QuestionnaireSession> {
+  const idempotencyKey = typeof crypto.randomUUID === "function"
+    ? crypto.randomUUID()
+    : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
   return request(`/questionnaire-sessions/${sessionId}/answers`, {
     method: "POST",
     body: JSON.stringify({
       session_question_id: questionId,
-      idempotency_key: crypto.randomUUID(),
+      idempotency_key: idempotencyKey,
       answer,
     }),
-  });
+  }, 1);
 }
 
 export function restartSession(sessionId: string): Promise<QuestionnaireSession> {
