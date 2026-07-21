@@ -14,7 +14,8 @@ import {
   submitAnswer,
 } from "@/lib/api";
 
-const SESSION_KEY = "roomicheck_session_id";
+const SESSION_KEY = "roomicheck_session_id_v3";
+const LEGACY_SESSION_KEY = "roomicheck_session_id";
 
 const DIMENSION_LABELS: Record<string, string> = {
   noise_environment: "Noise tolerance",
@@ -91,6 +92,9 @@ export default function Home() {
 
   useEffect(() => {
     let cancelled = false;
+    // Do not restore sessions created before the v3 questionnaire/profile
+    // contract. Those sessions can have questions that no longer exist.
+    window.localStorage.removeItem(LEGACY_SESSION_KEY);
     const sessionId = window.localStorage.getItem(SESSION_KEY);
     if (!sessionId) {
       queueMicrotask(() => setLoading(false));
@@ -99,6 +103,11 @@ export default function Home() {
 
     getSession(sessionId)
       .then((saved) => {
+        if (saved.status !== "complete" && !saved.current_question) {
+          window.localStorage.removeItem(SESSION_KEY);
+          if (!cancelled) setError("Your saved session needs to be restarted. Your new answers will use the updated questionnaire.");
+          return;
+        }
         if (!cancelled) setSession(saved);
       })
       .catch(() => {
