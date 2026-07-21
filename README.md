@@ -2,7 +2,7 @@
 
 RoomiCheck is an AI-native co-living assessment prototype for university housing. It combines scenario-based questions, contextual AI follow-ups, privacy controls, and validated profile synthesis to describe how a student prefers to share a room.
 
-The current milestone generates a six-dimension co-living profile. It asks targeted detail questions within each dimension before completing the profile. It does not rank or match roommates yet.
+The current milestone generates an eight-dimension co-living profile. It asks targeted detail questions within each dimension before completing the profile. It does not rank or match roommates yet.
 
 ## What It Does
 

@@ -17,12 +17,14 @@ import {
 const SESSION_KEY = "roomicheck_session_id";
 
 const DIMENSION_LABELS: Record<string, string> = {
-  noise_environment: "Noise and environment",
-  social_interaction: "Social interaction",
-  study_daily_routine: "Study, sleep, and daily schedule",
+  noise_environment: "Noise tolerance",
+  social_interaction: "Social energy",
+  study_daily_routine: "Daily routine",
   cultural_openness: "Cultural openness",
-  household_structure: "Cleanliness, chores, and shared living",
-  communication_conflict: "Communication and conflict",
+  household_structure: "Household order",
+  personal_boundaries: "Personal boundaries",
+  communication_style: "Communication style",
+  rule_flexibility: "Rule flexibility",
 };
 
 const DIMENSION_IDS = [
@@ -31,7 +33,9 @@ const DIMENSION_IDS = [
   "study_daily_routine",
   "cultural_openness",
   "household_structure",
-  "communication_conflict",
+  "personal_boundaries",
+  "communication_style",
+  "rule_flexibility",
 ] as const;
 
 type ProfileDimension = {
@@ -392,11 +396,15 @@ function CompletionView({ session, loading, onRestart, error }: { session: Quest
         <section className="completion-intro" aria-labelledby="complete-title">
           <h1 id="complete-title">Your co-living profile</h1>
         </section>
+        <section className="summary-card" aria-labelledby="summary-title">
+          <p className="kicker">OVERALL SUMMARY</p>
+          <h2 id="summary-title">How you prefer to live</h2>
+          <p>{session.final_analysis?.overall_summary || session.final_summary || "Your profile summary is ready."}</p>
+        </section>
         {dimensions.length > 0 && (
-          <section className="profile-section" aria-labelledby="dimensions-title">
+          <section className="profile-section dimension-profile-section" aria-labelledby="dimensions-title">
             <div className="section-heading">
-              <h2 id="dimensions-title">Six dimensions</h2>
-              <p>Qualitative levels describe preferences, not roommate quality.</p>
+              <h2 id="dimensions-title">Eight dimensions</h2>
             </div>
             <div className="dimension-grid">
               {dimensions.map(([id, dimension]) => (
@@ -412,11 +420,31 @@ function CompletionView({ session, loading, onRestart, error }: { session: Quest
             </div>
           </section>
         )}
-        <section className="summary-card" aria-labelledby="summary-title">
-          <p className="kicker">AI SUMMARY</p>
-          <h2 id="summary-title">How you prefer to live</h2>
-          <p>{session.final_summary || "Your profile summary is ready."}</p>
-        </section>
+        {session.final_analysis && (
+          <section className="profile-section holistic-section" aria-labelledby="holistic-title">
+            <div className="section-heading">
+              <h2 id="holistic-title">Your whole-profile picture</h2>
+            </div>
+            {session.final_analysis.cross_dimension_insights.length > 0 && (
+              <div className="analysis-block">
+                <h3>Connections</h3>
+                <ul>{session.final_analysis.cross_dimension_insights.map((item) => <li key={item}>{item}</li>)}</ul>
+              </div>
+            )}
+            {session.final_analysis.tradeoffs.length > 0 && (
+              <div className="analysis-block">
+                <h3>Tradeoffs to plan for</h3>
+                <ul>{session.final_analysis.tradeoffs.map((item) => <li key={item}>{item}</li>)}</ul>
+              </div>
+            )}
+            {session.final_analysis.suggestions.length > 0 && (
+              <div className="analysis-block">
+                <h3>Suggestions</h3>
+                <ul>{session.final_analysis.suggestions.map((item) => <li key={item}>{item}</li>)}</ul>
+              </div>
+            )}
+          </section>
+        )}
         {error && <ErrorNotice message={error} />}
         <button className="button button-secondary button-wide" onClick={onRestart} disabled={loading}>{loading ? "Starting over..." : "Start a new profile"}</button>
       </div>

@@ -57,6 +57,7 @@ class QuestionnaireSession(TimestampMixin, Base):
     completion_reason: Mapped[str | None] = mapped_column(String(32))
     final_profile_json: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
     final_summary: Mapped[str | None] = mapped_column(Text)
+    final_analysis_json: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
     total_questions: Mapped[int] = mapped_column(Integer, default=0)
     session_duration_seconds: Mapped[int | None] = mapped_column(Integer)
     error_occurred: Mapped[bool] = mapped_column(Boolean, default=False)

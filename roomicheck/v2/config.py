@@ -10,9 +10,9 @@ from typing import Any
 ROOT_DIR = Path(__file__).resolve().parents[2]
 QUESTIONNAIRE_DIR = ROOT_DIR / "questionnaire"
 
-PROFILE_SCHEMA_VERSION = "co_living_profile.v2"
-QUESTIONNAIRE_VERSION = "adaptive_demo.v2"
-DIMENSION_DEFINITION_VERSION = "v2"
+PROFILE_SCHEMA_VERSION = "co_living_profile.v3"
+QUESTIONNAIRE_VERSION = "adaptive_demo.v3"
+DIMENSION_DEFINITION_VERSION = "v3"
 
 DIMENSION_IDS = (
     "noise_environment",
@@ -20,7 +20,9 @@ DIMENSION_IDS = (
     "study_daily_routine",
     "cultural_openness",
     "household_structure",
-    "communication_conflict",
+    "personal_boundaries",
+    "communication_style",
+    "rule_flexibility",
 )
 
 

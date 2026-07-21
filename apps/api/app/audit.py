@@ -247,4 +247,5 @@ def get_internal_session(db: Session, session_id: UUID) -> InternalSessionOut:
         ) for item in events],
         final_profile=session.final_profile_json,
         final_summary=session.final_summary,
+        final_analysis=session.final_analysis_json,
     )

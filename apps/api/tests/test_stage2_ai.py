@@ -151,7 +151,24 @@ def test_other_ai_contracts_are_strict() -> None:
     with pytest.raises(ValueError):
         AdaptedQuestion(text="")
     with pytest.raises(ValueError):
-        SummaryResult(summary="")
+        SummaryResult(overall_summary="")
+
+
+def test_fallback_summary_connects_dimensions_without_concatenating_them() -> None:
+    from app.ai import FallbackAdaptiveProvider
+
+    result = FallbackAdaptiveProvider().summarize({
+        "dimensions": {
+            "noise_environment": {"score": 20},
+            "social_interaction": {"score": 80},
+        },
+        "contradictions": [],
+    })
+
+    assert result.cross_dimension_insights
+    assert result.tradeoffs
+    assert result.suggestions
+    assert "quiet" in result.cross_dimension_insights[0].lower()
 
 
 def test_privacy_withheld_extraction_does_not_add_evidence() -> None:

@@ -43,6 +43,7 @@ class SessionOut(StrictModel):
     current_question: QuestionOut | None
     final_profile: dict[str, Any] | None = None
     final_summary: str | None = None
+    final_analysis: dict[str, Any] | None = None
 
 
 class AnswerValue(StrictModel):
@@ -188,6 +189,7 @@ class InternalSessionOut(StrictModel):
     events: list[InternalEventOut]
     final_profile: dict[str, Any] | None
     final_summary: str | None
+    final_analysis: dict[str, Any] | None
 
 
 class HealthOut(StrictModel):

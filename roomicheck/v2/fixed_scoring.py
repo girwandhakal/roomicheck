@@ -38,7 +38,7 @@ def load_fixed_scoring_rules() -> dict[str, Any]:
     payload = json.loads(SCORING_PATH.read_text(encoding="utf-8"))
     if not isinstance(payload, dict) or set(payload) != {"scoring_version", "scales", "options"}:
         raise ValueError("Fixed scoring rules must contain scoring_version, scales, and options")
-    if payload["scoring_version"] != "co_living_scoring.v2":
+    if payload["scoring_version"] != "co_living_scoring.v3":
         raise ValueError("Unexpected fixed scoring version")
     raw_options = payload["options"]
     if not isinstance(raw_options, dict):

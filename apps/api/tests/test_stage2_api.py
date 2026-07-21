@@ -92,7 +92,11 @@ def test_known_choice_does_not_call_ai_provider(api, monkeypatch) -> None:
             return AdaptedQuestion(text=payload["bank_question"])
 
         def summarize(self, _payload):
-            return SummaryResult(summary="A deterministic test summary.")
+            return SummaryResult(
+                cross_dimension_insights=["Connects the validated dimensions."],
+                suggestions=["Discuss shared routines."],
+                overall_summary="A deterministic test summary.",
+            )
 
     session_ids: list[str] = []
     monkeypatch.setattr(service, "ai_provider", SeedOnlyProvider())

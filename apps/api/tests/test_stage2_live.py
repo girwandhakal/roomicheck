@@ -49,7 +49,9 @@ def test_live_provider_returns_all_stage2_contracts() -> None:
             "allowed_dimensions": [
                 "noise_environment",
                 "household_structure",
-                "communication_conflict",
+                "communication_style",
+                "personal_boundaries",
+                "rule_flexibility",
             ],
             "prior_response_ids": [],
         }
@@ -77,4 +79,6 @@ def test_live_provider_returns_all_stage2_contracts() -> None:
     assert isinstance(extraction, ExtractionResult)
     assert isinstance(adapted, AdaptedQuestion)
     assert isinstance(summary, SummaryResult)
+    assert summary.overall_summary
+    assert isinstance(summary.cross_dimension_insights, list)
     assert adapted.text.endswith("?")

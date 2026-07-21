@@ -17,8 +17,15 @@ ADAPT_PROMPT = (
     "answerability, and options. Ask one practical non-sensitive question and end with a question mark."
 )
 
-SUMMARY_PROMPT_VERSION = "summarize_profile.v1"
+SUMMARY_PROMPT_VERSION = "summarize_profile.v2"
 SUMMARY_PROMPT = (
-    "Write a neutral concise co-living preference summary grounded only in the validated profile. "
-    "Mention uncertainty when present; do not diagnose, judge, infer protected traits, or add facts."
+    "Analyze the complete validated co-living profile as a whole. Return dimension-independent insights "
+    "that connect multiple dimensions, identify meaningful tradeoffs, provide practical suggestions, and "
+    "end with a concise overall summary written directly to the participant using you and your. Use simple everyday English, short sentences, and direct wording. "
+    "Avoid jargon, formal phrases, vague language, and unnecessary qualifiers. Do not simply restate the individual dimension summaries. "
+    "For example, distinguish a need for a quiet shared home from a desire for an active social life, "
+    "and explain the conditions that could make both preferences workable. Ground every claim in the "
+    "validated profile and mention uncertainty when present. Do not compare the person to a hypothetical "
+    "roommate, make compatibility or roommate-quality judgments, diagnose, judge, infer protected traits, "
+    "or add facts."
 )

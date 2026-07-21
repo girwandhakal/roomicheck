@@ -25,6 +25,12 @@ export interface QuestionnaireSession {
   current_question: Question | null;
   final_profile: Record<string, unknown> | null;
   final_summary: string | null;
+  final_analysis: {
+    cross_dimension_insights: string[];
+    tradeoffs: string[];
+    suggestions: string[];
+    overall_summary: string;
+  } | null;
 }
 
 export interface AnswerValue {

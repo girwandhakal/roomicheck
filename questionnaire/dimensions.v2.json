@@ -1,48 +1,62 @@
 {
-  "version": "v2",
-  "profile_schema": "co_living_profile.v2",
+  "version": "v3",
+  "profile_schema": "co_living_profile.v3",
   "dimensions": [
     {
       "id": "noise_environment",
-      "label": "Noise and Environment",
-      "description": "General noise, quiet hours, focus and sleep sensitivity, lighting, and temperature preferences.",
-      "score_low": "Strongly controlled and quiet environment",
-      "score_high": "Highly tolerant and flexible environment"
+      "label": "Noise Tolerance",
+      "description": "Sensitivity to noise during sleep study and shared living.",
+      "score_low": "Needs a quiet controlled environment",
+      "score_high": "Tolerates varied everyday noise"
     },
     {
       "id": "social_interaction",
-      "label": "Social Interaction",
-      "description": "Roommate relationship, shared activities, privacy, alone time, and comfort with visitors.",
-      "score_low": "Mostly independent and private",
-      "score_high": "Highly social and shared"
+      "label": "Social Energy",
+      "description": "Preference for shared activities roommate connection and home socializing.",
+      "score_low": "Prefers independent living",
+      "score_high": "Seeks frequent shared interaction"
     },
     {
       "id": "study_daily_routine",
-      "label": "Study, Sleep, and Daily Schedule",
-      "description": "Study or work intensity, sleep schedule, focus needs, and weekday or weekend routines.",
-      "score_low": "Flexible and unstructured routine",
-      "score_high": "Highly structured and routine-dependent"
+      "label": "Daily Routine",
+      "description": "Preference for predictable study sleep work and daily schedules.",
+      "score_low": "Accommodates changing routines",
+      "score_high": "Needs predictable routines"
     },
     {
       "id": "cultural_openness",
-      "label": "Cultural Openness and Inclusion",
-      "description": "Comfort with different foods, languages, traditions, routines, and cultural misunderstandings.",
+      "label": "Cultural Openness",
+      "description": "Comfort with different backgrounds foods languages traditions and routines.",
       "score_low": "Prefers familiar routines",
-      "score_high": "Highly open to different routines and backgrounds"
+      "score_high": "Welcomes different routines"
     },
     {
       "id": "household_structure",
-      "label": "Cleanliness, Chores, and Shared Living",
-      "description": "Cleanliness, chores, shared supplies, food, guests, common areas, and household agreements.",
-      "score_low": "Informal and flexible household agreements",
-      "score_high": "Highly structured and rule-oriented household agreements"
+      "label": "Household Order",
+      "description": "Preference for cleanliness chores shared supplies and common area standards.",
+      "score_low": "Uses informal household routines",
+      "score_high": "Needs structured household routines"
     },
     {
-      "id": "communication_conflict",
-      "label": "Flexibility, Communication, and Conflict",
-      "description": "Compromise, communication style, problem timing, repeated mistakes, and routine adaptation.",
-      "score_low": "Indirect or cool-down-oriented communication",
-      "score_high": "Direct and immediate communication"
+      "id": "personal_boundaries",
+      "label": "Personal Boundaries",
+      "description": "Preference for privacy personal belongings private time and visitor boundaries.",
+      "score_low": "Prefers shared access and presence",
+      "score_high": "Needs clear personal boundaries"
+    },
+    {
+      "id": "communication_style",
+      "label": "Communication Style",
+      "description": "Preferred approach for raising concerns discussing problems and repairing misunderstandings.",
+      "score_low": "Prefers indirect communication",
+      "score_high": "Prefers direct communication"
+    },
+    {
+      "id": "rule_flexibility",
+      "label": "Rule Flexibility",
+      "description": "Preference for fixed agreements versus adapting household expectations to circumstances.",
+      "score_low": "Adapts rules to circumstances",
+      "score_high": "Needs consistent household rules"
     }
   ]
 }

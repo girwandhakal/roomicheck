@@ -35,6 +35,7 @@ from .ai import (
     ExtractionDimension,
     ExtractionResult,
     ProviderError,
+    SummaryResult,
     allowed_dimensions,
     validate_summary,
 )
@@ -77,7 +78,9 @@ SEED_SIGNAL_PATTERNS = {
     "study_daily_routine": re.compile(r"\b(?:study|work|schedule|routine|weekday|weekend|wake|sleep)\b", re.I),
     "cultural_openness": re.compile(r"\b(?:culture|cultural|language|tradition|different background|food)\b", re.I),
     "household_structure": re.compile(r"\b(?:clean|chores?|supplies|sharing|guests?|common area|rules?)\b", re.I),
-    "communication_conflict": re.compile(r"\b(?:communicat|conflict|compromise|discuss|talk|problem)\w*\b", re.I),
+    "personal_boundaries": re.compile(r"\b(?:boundar|private|privacy|belongings?|borrow|visitors?|guests?)\w*\b", re.I),
+    "communication_style": re.compile(r"\b(?:communicat|conflict|compromise|discuss|talk|problem|direct|message)\w*\b", re.I),
+    "rule_flexibility": re.compile(r"\b(?:rule|agreement|flexib|adapt|adjust|expectation|schedule)\w*\b", re.I),
 }
 
 
@@ -206,6 +209,7 @@ def public_session(db: Session, session: models.QuestionnaireSession) -> Session
         current_question=_question_out(current_question),
         final_profile=session.final_profile_json if session.status == "complete" else None,
         final_summary=session.final_summary if session.status == "complete" else None,
+        final_analysis=session.final_analysis_json if session.status == "complete" else None,
     )
 
 
@@ -396,7 +400,7 @@ def _record_ai_run(
         "extract_response": EXTRACT_PROMPT_VERSION,
         "adapt_question": ADAPT_PROMPT_VERSION,
         "summarize_profile": SUMMARY_PROMPT_VERSION,
-        "fixed_choice_score": "co_living_scoring.v2",
+        "fixed_choice_score": "co_living_scoring.v3",
     }
     db.add(models.AIRun(
         session_id=session.id,
@@ -477,16 +481,11 @@ def _apply_extraction(
     return extracted.model_dump(mode="json")
 
 
-def _deterministic_summary(profile: ProfileV2) -> str:
-    parts = []
-    for state in profile.dimensions.values():
-        if state.summary:
-            parts.append(state.summary)
-
-    if parts:
-        return " ".join(parts)
-
-    return "RoomiCheck recorded evidence across the co-living profile."
+def _deterministic_analysis(profile: ProfileV2) -> SummaryResult:
+    return fallback_provider.summarize({
+        "dimensions": {key: value.to_dict() for key, value in profile.dimensions.items()},
+        "contradictions": [item.to_dict() for item in profile.contradictions],
+    })
 
 
 def _selection_reason(profile: ProfileV2, dimension: str) -> str:
@@ -749,15 +748,23 @@ def _process_response(
         }
         summary_started = utc_now()
         try:
-            summary = validate_summary(ai_provider.summarize(summary_input).summary)
-            profile.written_summary = summary
+            analysis = ai_provider.summarize(summary_input)
+            for item in [
+                *analysis.cross_dimension_insights,
+                *analysis.tradeoffs,
+                *analysis.suggestions,
+            ]:
+                validate_summary(item)
+            analysis.overall_summary = validate_summary(analysis.overall_summary)
+            profile.written_summary = analysis.overall_summary
             _record_ai_run(db, session, response, operation="summarize_profile", provider_name=ai_provider.name,
-                           success=True, input_json=summary_input, output_json={"summary": profile.written_summary},
+                           success=True, input_json=summary_input, output_json=analysis.model_dump(mode="json"),
                            fallback_used=ai_provider is fallback_provider, started_at=summary_started)
         except ProviderError as error:
-            profile.written_summary = _deterministic_summary(profile)
+            analysis = _deterministic_analysis(profile)
+            profile.written_summary = analysis.overall_summary
             _record_ai_run(db, session, response, operation="summarize_profile", provider_name=ai_provider.name,
-                           success=False, input_json=summary_input, error_category=error.category,
+                           success=False, input_json=summary_input, output_json=analysis.model_dump(mode="json"), error_category=error.category,
                            fallback_used=True, started_at=summary_started)
         profile.status = ProfileStatus.COMPLETE
         snapshot.profile_json = profile.to_dict()
@@ -767,6 +774,7 @@ def _process_response(
         session.session_duration_seconds = max(0, int((now - session.started_at).total_seconds()))
         session.final_profile_json = profile.to_dict()
         session.final_summary = profile.written_summary
+        session.final_analysis_json = analysis.model_dump(mode="json")
         db.add(models.AnalyticsEvent(session_id=session.id, event_name="questionnaire_completed"))
         return
 
