@@ -3,16 +3,28 @@
   "scales": {},
   "options": {
     "noise_focus_preference": {
-      "quiet": {"noise_environment": {"score": 20, "label": "low", "confidence": 0.95, "summary": "Strongly prefers a quiet environment for focus."}, "study_daily_routine": {"score": 85, "label": "high", "confidence": 0.8, "summary": "Needs protected focus conditions to stay on track."}},
-      "headphones": {"noise_environment": {"score": 45, "label": "moderate", "confidence": 0.95, "summary": "Can accommodate noise when it is contained."}, "study_daily_routine": {"score": 65, "label": "moderate", "confidence": 0.8, "summary": "Can focus when a practical adjustment protects study time."}},
-      "background": {"noise_environment": {"score": 80, "label": "high", "confidence": 0.95, "summary": "Usually tolerates ordinary background noise."}, "study_daily_routine": {"score": 25, "label": "low", "confidence": 0.8, "summary": "Study focus is not strongly dependent on a quiet shared room."}},
-      "elsewhere": {"noise_environment": {"score": 30, "label": "low", "confidence": 0.95, "summary": "Prefers changing location when the environment is noisy."}, "study_daily_routine": {"score": 55, "label": "moderate", "confidence": 0.8, "summary": "Protects productivity by adapting where they work."}}
+      "quiet": {"physical_environment": {"score": 20, "label": "low", "confidence": 0.95, "summary": "Strongly prefers a quiet physical environment for focus."}, "study_daily_routine": {"score": 85, "label": "high", "confidence": 0.8, "summary": "Needs protected focus conditions to stay on track."}},
+      "headphones": {"physical_environment": {"score": 45, "label": "moderate", "confidence": 0.95, "summary": "Can accommodate noise when it is contained."}, "study_daily_routine": {"score": 65, "label": "moderate", "confidence": 0.8, "summary": "Can focus when a practical adjustment protects study time."}},
+      "background": {"physical_environment": {"score": 80, "label": "high", "confidence": 0.95, "summary": "Usually tolerates ordinary background noise."}, "study_daily_routine": {"score": 25, "label": "low", "confidence": 0.8, "summary": "Study focus is not strongly dependent on a quiet shared room."}},
+      "elsewhere": {"physical_environment": {"score": 30, "label": "low", "confidence": 0.95, "summary": "Prefers changing location when the physical environment is noisy."}, "study_daily_routine": {"score": 55, "label": "moderate", "confidence": 0.8, "summary": "Protects productivity by adapting where they work."}}
     },
     "noise_sleep_preference": {
-      "silent": {"noise_environment": {"score": 20, "label": "low", "confidence": 0.95, "summary": "Needs very quiet conditions to settle down."}},
-      "low": {"noise_environment": {"score": 45, "label": "moderate", "confidence": 0.95, "summary": "Can accommodate occasional nighttime noise."}},
-      "moderate": {"noise_environment": {"score": 80, "label": "high", "confidence": 0.95, "summary": "Normal room noise does not usually disrupt sleep."}},
-      "flexible": {"noise_environment": {"score": 60, "label": "moderate", "confidence": 0.95, "summary": "Noise tolerance depends on the situation."}}
+      "silent": {"physical_environment": {"score": 20, "label": "low", "confidence": 0.95, "summary": "Needs very quiet conditions to settle down."}},
+      "low": {"physical_environment": {"score": 45, "label": "moderate", "confidence": 0.95, "summary": "Can accommodate occasional nighttime noise."}},
+      "moderate": {"physical_environment": {"score": 80, "label": "high", "confidence": 0.95, "summary": "Normal room noise does not usually disrupt sleep."}},
+      "flexible": {"physical_environment": {"score": 60, "label": "moderate", "confidence": 0.95, "summary": "Noise tolerance depends on the situation."}}
+    },
+    "temperature_preference": {
+      "cool": {"physical_environment": {"score": 30, "label": "low", "confidence": 0.95, "summary": "Has a specific preference for a cooler shared space."}},
+      "moderate": {"physical_environment": {"score": 50, "label": "moderate", "confidence": 0.95, "summary": "Feels comfortable with moderate room temperatures."}},
+      "warm": {"physical_environment": {"score": 30, "label": "low", "confidence": 0.95, "summary": "Has a specific preference for a warmer shared space."}},
+      "flexible": {"physical_environment": {"score": 80, "label": "high", "confidence": 0.95, "summary": "Can accommodate a broad range of shared-space temperatures."}}
+    },
+    "light_preference": {
+      "dim": {"physical_environment": {"score": 30, "label": "low", "confidence": 0.95, "summary": "Prefers softer, lower-intensity lighting in shared spaces."}},
+      "balanced": {"physical_environment": {"score": 50, "label": "moderate", "confidence": 0.95, "summary": "Feels comfortable with balanced everyday lighting."}},
+      "bright": {"physical_environment": {"score": 30, "label": "low", "confidence": 0.95, "summary": "Has a specific preference for bright shared-space lighting."}},
+      "flexible": {"physical_environment": {"score": 80, "label": "high", "confidence": 0.95, "summary": "Can accommodate a broad range of shared-space lighting."}}
     },
     "social_relationship_preference": {
       "close_friends": {"social_interaction": {"score": 80, "label": "high", "confidence": 0.95, "summary": "Wants a close and regularly social roommate relationship."}},

@@ -10,12 +10,21 @@ from typing import Any
 ROOT_DIR = Path(__file__).resolve().parents[2]
 QUESTIONNAIRE_DIR = ROOT_DIR / "questionnaire"
 
-PROFILE_SCHEMA_VERSION = "co_living_profile.v3"
-QUESTIONNAIRE_VERSION = "adaptive_demo.v3"
-DIMENSION_DEFINITION_VERSION = "v3"
+PROFILE_SCHEMA_VERSION = "co_living_profile.v4"
+QUESTIONNAIRE_VERSION = "adaptive_demo.v4"
+DIMENSION_DEFINITION_VERSION = "v4"
+
+# These fixed questions are inserted before adaptive follow-ups for every
+# questionnaire session. Keep the order stable because it is part of the
+# participant experience and the audit trail.
+REQUIRED_QUESTION_IDS = (
+    "noise_focus_preference",
+    "temperature_preference",
+    "light_preference",
+)
 
 DIMENSION_IDS = (
-    "noise_environment",
+    "physical_environment",
     "social_interaction",
     "study_daily_routine",
     "cultural_openness",

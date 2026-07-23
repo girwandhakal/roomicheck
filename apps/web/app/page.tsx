@@ -14,11 +14,11 @@ import {
   submitAnswer,
 } from "@/lib/api";
 
-const SESSION_KEY = "roomicheck_session_id_v3";
-const LEGACY_SESSION_KEY = "roomicheck_session_id";
+const SESSION_KEY = "roomicheck_session_id_v4";
+const LEGACY_SESSION_KEYS = ["roomicheck_session_id_v3", "roomicheck_session_id"];
 
 const DIMENSION_LABELS: Record<string, string> = {
-  noise_environment: "Noise tolerance",
+  physical_environment: "Physical environment",
   social_interaction: "Social energy",
   study_daily_routine: "Daily routine",
   cultural_openness: "Cultural openness",
@@ -29,7 +29,7 @@ const DIMENSION_LABELS: Record<string, string> = {
 };
 
 const DIMENSION_IDS = [
-  "noise_environment",
+  "physical_environment",
   "social_interaction",
   "study_daily_routine",
   "cultural_openness",
@@ -92,9 +92,9 @@ export default function Home() {
 
   useEffect(() => {
     let cancelled = false;
-    // Do not restore sessions created before the v3 questionnaire/profile
+    // Do not restore sessions created before the v4 questionnaire/profile
     // contract. Those sessions can have questions that no longer exist.
-    window.localStorage.removeItem(LEGACY_SESSION_KEY);
+    LEGACY_SESSION_KEYS.forEach((key) => window.localStorage.removeItem(key));
     const sessionId = window.localStorage.getItem(SESSION_KEY);
     if (!sessionId) {
       queueMicrotask(() => setLoading(false));
@@ -406,9 +406,9 @@ function CompletionView({ session, loading, onRestart, error }: { session: Quest
           <h1 id="complete-title">Your co-living profile</h1>
         </section>
         <section className="summary-card" aria-labelledby="summary-title">
-          <p className="kicker">OVERALL SUMMARY</p>
-          <h2 id="summary-title">How you prefer to live</h2>
-          <p>{session.final_analysis?.overall_summary || session.final_summary || "Your profile summary is ready."}</p>
+          <p className="kicker">YOUR IDEAL ROOMMATE</p>
+          <h2 id="summary-title">Your Ideal Roommate</h2>
+          <p>{session.final_analysis?.ideal_roommate || session.final_summary || "Your profile summary is ready."}</p>
         </section>
         {dimensions.length > 0 && (
           <section className="profile-section dimension-profile-section" aria-labelledby="dimensions-title">
@@ -427,31 +427,6 @@ function CompletionView({ session, loading, onRestart, error }: { session: Quest
                 </article>
               ))}
             </div>
-          </section>
-        )}
-        {session.final_analysis && (
-          <section className="profile-section holistic-section" aria-labelledby="holistic-title">
-            <div className="section-heading">
-              <h2 id="holistic-title">Your whole-profile picture</h2>
-            </div>
-            {session.final_analysis.cross_dimension_insights.length > 0 && (
-              <div className="analysis-block">
-                <h3>Connections</h3>
-                <ul>{session.final_analysis.cross_dimension_insights.map((item) => <li key={item}>{item}</li>)}</ul>
-              </div>
-            )}
-            {session.final_analysis.tradeoffs.length > 0 && (
-              <div className="analysis-block">
-                <h3>Tradeoffs to plan for</h3>
-                <ul>{session.final_analysis.tradeoffs.map((item) => <li key={item}>{item}</li>)}</ul>
-              </div>
-            )}
-            {session.final_analysis.suggestions.length > 0 && (
-              <div className="analysis-block">
-                <h3>Suggestions</h3>
-                <ul>{session.final_analysis.suggestions.map((item) => <li key={item}>{item}</li>)}</ul>
-              </div>
-            )}
           </section>
         )}
         {error && <ErrorNotice message={error} />}

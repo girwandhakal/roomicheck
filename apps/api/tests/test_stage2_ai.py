@@ -36,8 +36,8 @@ def _question() -> models.SessionQuestion:
     return models.SessionQuestion(
         id=uuid4(), session_id=uuid4(), question_id="noise_focus_preference", question_order=2,
         exact_question_text="How quiet do you prefer it?", question_type="single_choice",
-        primary_dimension="noise_environment", secondary_dimensions=["study_daily_routine"], options_json=[],
-        selection_reason="unknown_dimension:noise_environment", source="bank", confidence_before_json={},
+        primary_dimension="physical_environment", secondary_dimensions=["study_daily_routine"], options_json=[],
+        selection_reason="unknown_dimension:physical_environment", source="bank", confidence_before_json={},
     )
 
 
@@ -45,13 +45,13 @@ def test_extraction_maps_rubric_label_with_deterministic_math() -> None:
     profile = ProfileV2.empty()
     response, question = _response("I need quiet to study."), _question()
     result = ExtractionResult(dimensions=[ExtractionDimension(
-        dimension="noise_environment", label="very_low", confidence="high",
+        dimension="physical_environment", label="very_low", confidence="high",
         weight=0.5,
         supporting_quote="I need quiet to study.", summary="Prefers quiet for focused work.",
         preference_strength_known=True, scenario_evidence=True,
     )])
     _apply_extraction(profile, response, question, result)
-    state = profile.dimensions["noise_environment"]
+    state = profile.dimensions["physical_environment"]
     assert state.score == 10
     assert state.confidence == 0.9
     assert state.evidence[0].excerpt == "I need quiet to study."
@@ -60,7 +60,7 @@ def test_extraction_maps_rubric_label_with_deterministic_math() -> None:
 def test_extraction_rejects_quote_not_present_in_sanitized_answer() -> None:
     profile = ProfileV2.empty()
     result = ExtractionResult(dimensions=[ExtractionDimension(
-        dimension="noise_environment", label="very_high", confidence="high",
+        dimension="physical_environment", label="very_high", confidence="high",
         supporting_quote="Invented quote", summary="Unsupported.",
     )])
     with pytest.raises(ProviderError, match="invalid_evidence_quote"):
@@ -75,7 +75,7 @@ def test_summary_policy_rejects_judgmental_claims() -> None:
 def test_extraction_rejects_unknown_contradiction_reference() -> None:
     profile = ProfileV2.empty()
     result = ExtractionResult(dimensions=[ExtractionDimension(
-        dimension="noise_environment", label="very_high", confidence="high",
+        dimension="physical_environment", label="very_high", confidence="high",
         supporting_quote="Real answer", summary="Conflicts with prior evidence.",
         contradiction_response_ids=[str(uuid4())],
     )])
@@ -91,13 +91,13 @@ def test_openai_provider_classifies_rate_limit(monkeypatch) -> None:
 
     monkeypatch.setattr("urllib.request.urlopen", fail)
     with pytest.raises(ProviderError, match="rate_limited"):
-        provider.extract({"answer": "quiet", "allowed_dimensions": ["noise_environment"]})
+        provider.extract({"answer": "quiet", "allowed_dimensions": ["physical_environment"]})
 
 
 def test_extraction_contract_rejects_unknown_label() -> None:
     with pytest.raises(ValueError):
         ExtractionDimension(
-            dimension="noise_environment",
+            dimension="physical_environment",
             label="extreme",
             confidence="high",
             supporting_quote="quiet",
@@ -108,7 +108,7 @@ def test_extraction_contract_rejects_unknown_label() -> None:
 def test_extraction_contract_rejects_invalid_weight() -> None:
     with pytest.raises(ValueError):
         ExtractionDimension(
-            dimension="noise_environment",
+            dimension="physical_environment",
             label="high",
             confidence="high",
             weight=0.1,
@@ -132,7 +132,7 @@ def test_provider_classifies_malformed_structured_output(monkeypatch) -> None:
 
     monkeypatch.setattr("urllib.request.urlopen", lambda *_args, **_kwargs: Response())
     with pytest.raises(ProviderError, match="invalid_structured_output"):
-        provider.extract({"answer": "quiet", "allowed_dimensions": ["noise_environment"]})
+        provider.extract({"answer": "quiet", "allowed_dimensions": ["physical_environment"]})
 
 
 def test_provider_classifies_timeout_after_retries(monkeypatch) -> None:
@@ -144,31 +144,29 @@ def test_provider_classifies_timeout_after_retries(monkeypatch) -> None:
     monkeypatch.setattr("urllib.request.urlopen", fail)
     monkeypatch.setattr("time.sleep", lambda *_args: None)
     with pytest.raises(ProviderError, match="network_error"):
-        provider.extract({"answer": "quiet", "allowed_dimensions": ["noise_environment"]})
+        provider.extract({"answer": "quiet", "allowed_dimensions": ["physical_environment"]})
 
 
 def test_other_ai_contracts_are_strict() -> None:
     with pytest.raises(ValueError):
         AdaptedQuestion(text="")
     with pytest.raises(ValueError):
-        SummaryResult(overall_summary="")
+        SummaryResult(ideal_roommate="")
 
 
-def test_fallback_summary_connects_dimensions_without_concatenating_them() -> None:
+def test_fallback_summary_describes_the_ideal_roommate_from_dimensions() -> None:
     from app.ai import FallbackAdaptiveProvider
 
     result = FallbackAdaptiveProvider().summarize({
         "dimensions": {
-            "noise_environment": {"score": 20},
+            "physical_environment": {"summary": "Prefers a quiet, predictable physical environment."},
             "social_interaction": {"score": 80},
         },
         "contradictions": [],
     })
 
-    assert result.cross_dimension_insights
-    assert result.tradeoffs
-    assert result.suggestions
-    assert "quiet" in result.cross_dimension_insights[0].lower()
+    assert result.ideal_roommate
+    assert "quiet" in result.ideal_roommate.lower()
 
 
 def test_privacy_withheld_extraction_does_not_add_evidence() -> None:
@@ -179,7 +177,7 @@ def test_privacy_withheld_extraction_does_not_add_evidence() -> None:
 
     result = _mock_extract(profile, question, response.id, response.sanitized_model_input, False)
     assert result == {"dimensions_updated": [], "withheld": True}
-    assert not profile.dimensions["noise_environment"].evidence
+    assert not profile.dimensions["physical_environment"].evidence
 
 
 def test_extraction_payload_preserves_question_context() -> None:
@@ -221,7 +219,7 @@ def test_known_choice_uses_deterministic_mapping() -> None:
     assert extracted.dimensions[0].label == "low"
     assert extracted.dimensions[0].confidence == "high"
     _apply_extraction(profile, response, question, extracted)
-    assert profile.dimensions["noise_environment"].score == 20
+    assert profile.dimensions["physical_environment"].score == 20
     assert profile.dimensions["study_daily_routine"].score == 85
 
 
@@ -243,6 +241,6 @@ def test_ai_adapted_wording_keeps_source_bank_scoring() -> None:
 
     assert extracted is not None
     assert {item.dimension for item in extracted.dimensions} == {
-        "noise_environment",
+        "physical_environment",
         "study_daily_routine",
     }

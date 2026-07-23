@@ -19,13 +19,13 @@ def request_with_token(token: str) -> Request:
 
 
 def test_snapshot_diff_reports_dimension_and_confidence_changes() -> None:
-    before = {"dimensions": {"noise_environment": {"score": 20, "confidence": 0.5}}}
-    after = {"dimensions": {"noise_environment": {"score": 45, "confidence": 0.9}}}
+    before = {"dimensions": {"physical_environment": {"score": 20, "confidence": 0.5}}}
+    after = {"dimensions": {"physical_environment": {"score": 45, "confidence": 0.9}}}
 
     diff = audit.snapshot_diff(before, after)
 
-    assert diff["dimensions"]["noise_environment"]["score"] == {"before": 20, "after": 45}
-    assert diff["confidence_changes"]["noise_environment"] == {"before": 0.5, "after": 0.9}
+    assert diff["dimensions"]["physical_environment"]["score"] == {"before": 20, "after": 45}
+    assert diff["confidence_changes"]["physical_environment"] == {"before": 0.5, "after": 0.9}
 
 
 def test_client_event_schema_rejects_unapproved_event() -> None:

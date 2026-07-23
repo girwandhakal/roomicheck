@@ -53,10 +53,7 @@ class AdaptedQuestion(StrictModel):
 
 
 class SummaryResult(StrictModel):
-    cross_dimension_insights: list[str] = Field(default_factory=list, max_length=4)
-    tradeoffs: list[str] = Field(default_factory=list, max_length=4)
-    suggestions: list[str] = Field(default_factory=list, max_length=4)
-    overall_summary: str = Field(min_length=1, max_length=1000)
+    ideal_roommate: str = Field(min_length=1, max_length=1000)
 
 
 class AdaptiveProvider(Protocol):
@@ -126,37 +123,37 @@ class FallbackAdaptiveProvider:
 
     def summarize(self, payload: dict[str, Any]) -> SummaryResult:
         dimensions = payload.get("dimensions", {})
-        scores = {
-            key: value.get("score")
-            for key, value in dimensions.items()
-            if isinstance(value, dict) and isinstance(value.get("score"), (int, float))
+        names = {
+            "physical_environment": "physical environment",
+            "social_interaction": "social connection",
+            "study_daily_routine": "daily routine",
+            "cultural_openness": "cultural openness",
+            "household_structure": "household organization",
+            "personal_boundaries": "personal boundaries",
+            "communication_style": "communication style",
+            "rule_flexibility": "household flexibility",
         }
-        insights: list[str] = []
-        tradeoffs: list[str] = []
-        suggestions: list[str] = []
-
-        if scores.get("noise_environment", 50) <= 35 and scores.get("social_interaction", 50) >= 70:
-            insights.append("You may want active social connection while still needing the shared home to stay quiet and predictable.")
-            tradeoffs.append("A good arrangement may separate social energy from quiet periods in the home.")
-            suggestions.append("Set shared quiet hours and agree on where or when guests and group activities fit.")
-        if scores.get("study_daily_routine", 50) >= 70 and scores.get("noise_environment", 50) <= 35:
-            insights.append("Your focus and quiet preferences reinforce each other, so interruptions may matter most during study or rest windows.")
-            suggestions.append("Make study, sleep, and noise expectations explicit before sharing the space.")
-        if scores.get("household_structure", 50) >= 70 and scores.get("communication_style", 50) >= 70:
-            insights.append("You appear to value both clear household standards and direct communication when those standards need attention.")
-            suggestions.append("Use a simple recurring check-in to keep chores and shared expectations visible.")
-
-        if not insights:
-            insights.append("The profile is best understood as a combination of preferences that should be discussed together rather than evaluated separately.")
-        if not suggestions:
-            suggestions.append("Discuss the strongest preferences, uncertainty areas, and practical routines before sharing a home.")
-
-        return SummaryResult(
-            cross_dimension_insights=insights,
-            tradeoffs=tradeoffs,
-            suggestions=suggestions,
-            overall_summary="You will likely feel best in a home that gives you privacy but still leaves room to spend time with others. Agree on house rules and talk openly when something is not working.",
+        details: list[str] = []
+        for key, value in dimensions.items():
+            if not isinstance(value, dict):
+                continue
+            summary = value.get("summary")
+            label = value.get("label")
+            if isinstance(summary, str) and summary.strip():
+                detail = summary.strip()[:120]
+            elif isinstance(label, str) and label.strip():
+                detail = f"prefers a {label.replace('_', ' ')} level"
+            else:
+                detail = "still has some open questions"
+            details.append(f"{names.get(key, key.replace('_', ' '))}: {detail}")
+        if not details:
+            details.append("their shared-home preferences are still being clarified")
+        ideal = (
+            "Your ideal roommate is someone who can share a home in a way that fits your preferences. "
+            + " ".join(details)
+            + "."
         )
+        return SummaryResult(ideal_roommate=ideal[:1000])
 
 
 class OpenAIAdaptiveProvider:

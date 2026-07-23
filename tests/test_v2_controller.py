@@ -54,7 +54,7 @@ class AdaptiveControllerTests(unittest.TestCase):
         decision = self.controller.decide(ProfileV2.empty())
 
         self.assertFalse(decision.complete)
-        self.assertEqual(decision.next_dimension, "noise_environment")
+        self.assertEqual(decision.next_dimension, "physical_environment")
 
     def test_unresolved_major_contradiction_has_highest_priority(self) -> None:
         profile = ProfileV2.empty()
@@ -92,13 +92,13 @@ class AdaptiveControllerTests(unittest.TestCase):
 
     def test_missing_strength_or_scenario_guides_required_extra_questions(self) -> None:
         profile = filled_profile(0.9)
-        profile.dimensions["noise_environment"].preference_strength_known = False
+        profile.dimensions["physical_environment"].preference_strength_known = False
         profile.question_count = MINIMUM_QUESTION_COUNT - 1
 
         decision = self.controller.decide(profile)
 
         self.assertFalse(decision.complete)
-        self.assertEqual(decision.next_dimension, "noise_environment")
+        self.assertEqual(decision.next_dimension, "physical_environment")
 
     def test_threshold_completion_requires_minimum_and_sufficient_dimensions(self) -> None:
         profile = filled_profile(0.8)

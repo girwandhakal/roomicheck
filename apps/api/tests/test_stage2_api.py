@@ -79,7 +79,7 @@ def test_known_choice_does_not_call_ai_provider(api, monkeypatch) -> None:
             if payload["question_id"] != "seed_open_ideal_coliving":
                 raise AssertionError("known choice reached AI extraction")
             return ExtractionResult(dimensions=[ExtractionDimension(
-                dimension="noise_environment",
+                dimension="physical_environment",
                 label="moderate",
                 confidence="high",
                 supporting_quote=payload["answer"]["normalized_text"],
@@ -93,9 +93,7 @@ def test_known_choice_does_not_call_ai_provider(api, monkeypatch) -> None:
 
         def summarize(self, _payload):
             return SummaryResult(
-                cross_dimension_insights=["Connects the validated dimensions."],
-                suggestions=["Discuss shared routines."],
-                overall_summary="A deterministic test summary.",
+                ideal_roommate="A roommate who respects the participant's validated preferences.",
             )
 
     session_ids: list[str] = []
@@ -143,6 +141,60 @@ def test_known_choice_does_not_call_ai_provider(api, monkeypatch) -> None:
     finally:
         with SessionFactory() as database:
             session = database.get(models.QuestionnaireSession, session_ids[0]) if session_ids else None
+            if session is not None:
+                database.delete(session)
+            database.commit()
+
+
+def test_required_physical_environment_questions_are_asked_in_order(api, monkeypatch) -> None:
+    from app import service
+    from app.database import SessionFactory
+
+    session_ids: list[str] = []
+    monkeypatch.setattr(service, "ai_provider", service.fallback_provider)
+    try:
+        started = api.post("/api/v1/questionnaire-sessions")
+        assert started.status_code == 201, started.text
+        session_id = started.json()["session_id"]
+        session_ids.append(session_id)
+
+        current = started.json()["current_question"]
+        seed_response = api.post(
+            f"/api/v1/questionnaire-sessions/{session_id}/answers",
+            json={
+                "session_question_id": current["id"],
+                "idempotency_key": str(uuid4()),
+                "answer": {
+                    "free_text": "I like a calm, comfortable shared home.",
+                    "scale_value": None,
+                    "selected_option_id": None,
+                },
+            },
+        )
+        assert seed_response.status_code == 200, seed_response.text
+        current = seed_response.json()["current_question"]
+        assert current["source_question_id"] == "noise_focus_preference"
+
+        for expected_id in ("temperature_preference", "light_preference"):
+            option = next(item for item in current["options"] if item["id"] != "other")
+            response = api.post(
+                f"/api/v1/questionnaire-sessions/{session_id}/answers",
+                json={
+                    "session_question_id": current["id"],
+                    "idempotency_key": str(uuid4()),
+                    "answer": {
+                        "free_text": None,
+                        "scale_value": None,
+                        "selected_option_id": option["id"],
+                    },
+                },
+            )
+            assert response.status_code == 200, response.text
+            current = response.json()["current_question"]
+            assert current["source_question_id"] == expected_id
+    finally:
+        with SessionFactory() as database:
+            session = database.get(service.models.QuestionnaireSession, session_ids[0]) if session_ids else None
             if session is not None:
                 database.delete(session)
             database.commit()

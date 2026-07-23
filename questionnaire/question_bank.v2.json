@@ -1,5 +1,5 @@
 {
-  "questionnaire_version": "adaptive_demo.v3",
+  "questionnaire_version": "adaptive_demo.v4",
   "questions": [
     {
       "id": "seed_open_ideal_coliving",
@@ -19,7 +19,7 @@
       "version": "v3",
       "prompt": "You're trying to finish an important assignment when your roommate starts watching videos out loud. What would that be like for you?",
       "question_type": "single_choice",
-      "primary_dimension": "noise_environment",
+      "primary_dimension": "physical_environment",
       "secondary_dimensions": ["study_daily_routine"],
       "options": [
         {"id": "quiet", "label": "I'd be distracted until the room was quiet."},
@@ -34,11 +34,49 @@
       "active": true
     },
     {
+      "id": "temperature_preference",
+      "version": "v4",
+      "prompt": "What room temperature feels most comfortable for you?",
+      "question_type": "single_choice",
+      "primary_dimension": "physical_environment",
+      "secondary_dimensions": [],
+      "options": [
+        {"id": "cool", "label": "I feel most comfortable in a cooler room, around 65–68°F."},
+        {"id": "moderate", "label": "I feel most comfortable at a moderate room temperature, around 69–72°F."},
+        {"id": "warm", "label": "I feel most comfortable in a warmer room, around 73–76°F."},
+        {"id": "flexible", "label": "I am comfortable across a fairly wide range of temperatures."},
+        {"id": "other", "label": "Something else (tell us what feels comfortable)."}
+      ],
+      "scale_min": null,
+      "scale_max": null,
+      "is_seed": false,
+      "active": true
+    },
+    {
+      "id": "light_preference",
+      "version": "v4",
+      "prompt": "What kind of lighting feels most comfortable in your shared space?",
+      "question_type": "single_choice",
+      "primary_dimension": "physical_environment",
+      "secondary_dimensions": [],
+      "options": [
+        {"id": "dim", "label": "I feel most comfortable with dim or soft lighting."},
+        {"id": "balanced", "label": "I feel most comfortable with balanced everyday lighting."},
+        {"id": "bright", "label": "I feel most comfortable with bright, well-lit spaces."},
+        {"id": "flexible", "label": "I am comfortable with a wide range of lighting."},
+        {"id": "other", "label": "Something else (tell us what lighting feels comfortable)."}
+      ],
+      "scale_min": null,
+      "scale_max": null,
+      "is_seed": false,
+      "active": true
+    },
+    {
       "id": "noise_sleep_preference",
       "version": "v3",
       "prompt": "It's the night before an early class, and your roommate is still moving around and getting ready for bed. How does that sit with you?",
       "question_type": "single_choice",
-      "primary_dimension": "noise_environment",
+      "primary_dimension": "physical_environment",
       "secondary_dimensions": [],
       "options": [
         {"id": "silent", "label": "I'd have a hard time settling down unless it was very quiet."},

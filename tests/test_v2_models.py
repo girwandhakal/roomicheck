@@ -24,6 +24,7 @@ class V2ConfigurationTests(unittest.TestCase):
 
         self.assertEqual(tuple(definitions), DIMENSION_IDS)
         self.assertNotIn("living_and_cleanliness", definitions)
+        self.assertIn("physical_environment", definitions)
         for definition in definitions.values():
             definition.validate()
 
@@ -33,6 +34,12 @@ class V2ConfigurationTests(unittest.TestCase):
         self.assertEqual(bank.seed.id, "seed_open_ideal_coliving")
         self.assertEqual(bank.seed.question_type, QuestionType.FREE_TEXT)
         self.assertTrue(bank.seed.prompt.strip())
+        self.assertEqual(
+            [question.id for question in bank.questions if question.id in {
+                "noise_focus_preference", "temperature_preference", "light_preference"
+            }],
+            ["noise_focus_preference", "temperature_preference", "light_preference"],
+        )
         for question in bank.questions:
             if question.is_seed:
                 continue
@@ -97,7 +104,7 @@ class V2ProfileModelTests(unittest.TestCase):
         known_id = str(uuid4())
         unknown_id = str(uuid4())
         profile = ProfileV2.empty()
-        profile.dimensions["noise_environment"] = DimensionState(
+        profile.dimensions["physical_environment"] = DimensionState(
             score=20,
             confidence=0.5,
             coverage=CoverageStatus.PARTIAL,

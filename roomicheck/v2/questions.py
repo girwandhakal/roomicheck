@@ -4,7 +4,12 @@ from dataclasses import dataclass, field
 from enum import StrEnum
 from typing import Any
 
-from .config import DIMENSION_IDS, QUESTIONNAIRE_VERSION, load_question_bank_payload
+from .config import (
+    DIMENSION_IDS,
+    QUESTIONNAIRE_VERSION,
+    REQUIRED_QUESTION_IDS,
+    load_question_bank_payload,
+)
 
 
 class QuestionType(StrEnum):
@@ -110,6 +115,13 @@ class QuestionBank:
         self.seed
         if self.seed.question_type != QuestionType.FREE_TEXT:
             raise ValueError("The seed question must be open-ended")
+        question_by_id = {question.id: question for question in self.questions}
+        for required_id in REQUIRED_QUESTION_IDS:
+            required = question_by_id.get(required_id)
+            if required is None or not required.active or required.is_seed:
+                raise ValueError(f"Question bank lacks active required question: {required_id}")
+            if required.question_type != QuestionType.SINGLE_CHOICE:
+                raise ValueError(f"Required question {required_id} must be multiple choice")
         followups = [question for question in self.questions if not question.is_seed]
         if any(question.question_type != QuestionType.SINGLE_CHOICE for question in followups):
             raise ValueError("Every follow-up question must be multiple choice")

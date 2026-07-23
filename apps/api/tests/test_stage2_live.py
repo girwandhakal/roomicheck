@@ -47,7 +47,7 @@ def test_live_provider_returns_all_stage2_contracts() -> None:
             "options": [],
             "scale": None,
             "allowed_dimensions": [
-                "noise_environment",
+                "physical_environment",
                 "household_structure",
                 "communication_style",
                 "personal_boundaries",
@@ -79,6 +79,5 @@ def test_live_provider_returns_all_stage2_contracts() -> None:
     assert isinstance(extraction, ExtractionResult)
     assert isinstance(adapted, AdaptedQuestion)
     assert isinstance(summary, SummaryResult)
-    assert summary.overall_summary
-    assert isinstance(summary.cross_dimension_insights, list)
+    assert summary.ideal_roommate
     assert adapted.text.endswith("?")

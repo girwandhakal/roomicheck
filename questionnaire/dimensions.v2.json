@@ -1,13 +1,13 @@
 {
-  "version": "v3",
-  "profile_schema": "co_living_profile.v3",
+  "version": "v4",
+  "profile_schema": "co_living_profile.v4",
   "dimensions": [
     {
-      "id": "noise_environment",
-      "label": "Noise Tolerance",
-      "description": "Sensitivity to noise during sleep study and shared living.",
-      "score_low": "Needs a quiet controlled environment",
-      "score_high": "Tolerates varied everyday noise"
+      "id": "physical_environment",
+      "label": "Physical Environment",
+      "description": "Comfort with shared-home conditions such as noise, room temperature, and lighting.",
+      "score_low": "Needs tightly controlled physical conditions",
+      "score_high": "Accommodates varied physical conditions"
     },
     {
       "id": "social_interaction",

@@ -26,10 +26,7 @@ export interface QuestionnaireSession {
   final_profile: Record<string, unknown> | null;
   final_summary: string | null;
   final_analysis: {
-    cross_dimension_insights: string[];
-    tradeoffs: string[];
-    suggestions: string[];
-    overall_summary: string;
+    ideal_roommate: string;
   } | null;
 }
 

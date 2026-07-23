@@ -11,8 +11,18 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from roomicheck.privacy import PrivacyGuard
-from roomicheck.v2.config import DIMENSION_IDS, PROFILE_SCHEMA_VERSION, QUESTIONNAIRE_VERSION
-from roomicheck.v2.controller import AdaptiveController, CompletionReason
+from roomicheck.v2.config import (
+    DIMENSION_IDS,
+    PROFILE_SCHEMA_VERSION,
+    QUESTIONNAIRE_VERSION,
+    REQUIRED_QUESTION_IDS,
+)
+from roomicheck.v2.controller import (
+    AdaptiveController,
+    CompletionDecision,
+    CompletionReason,
+    MAXIMUM_QUESTION_COUNT,
+)
 from roomicheck.v2.models import (
     CoverageStatus,
     DimensionState,
@@ -73,7 +83,7 @@ EVENT_PROPERTY_KEYS = {
 }
 
 SEED_SIGNAL_PATTERNS = {
-    "noise_environment": re.compile(r"\b(?:quiet|noise|music|calls?|light|temperature|sleep)\b", re.I),
+    "physical_environment": re.compile(r"\b(?:quiet|noise|music|calls?|light|temperature|sleep)\b", re.I),
     "social_interaction": re.compile(r"\b(?:social|friends?|hang out|alone|privacy|own space)\b", re.I),
     "study_daily_routine": re.compile(r"\b(?:study|work|schedule|routine|weekday|weekend|wake|sleep)\b", re.I),
     "cultural_openness": re.compile(r"\b(?:culture|cultural|language|tradition|different background|food)\b", re.I),
@@ -497,6 +507,20 @@ def _selection_reason(profile: ProfileV2, dimension: str) -> str:
     return f"lowest_confidence:{dimension}"
 
 
+def _next_required_question(asked_question_ids: set[str]) -> QuestionDefinition | None:
+    """Return the next mandatory fixed question in its stable order."""
+    for required_id in REQUIRED_QUESTION_IDS:
+        if required_id in asked_question_ids:
+            continue
+        question = next(
+            (candidate for candidate in question_bank.questions if candidate.id == required_id and candidate.active),
+            None,
+        )
+        if question is not None:
+            return question
+    return None
+
+
 def _question_text_key(text: str) -> str:
     return " ".join(text.casefold().split())
 
@@ -721,6 +745,11 @@ def _process_response(
         ).all()
     )
     decision = controller.decide(profile, asked)
+    required_next = _next_required_question(asked)
+    if required_next is not None and profile.question_count < MAXIMUM_QUESTION_COUNT:
+        # Mandatory physical-environment questions are always collected before
+        # adaptive follow-ups or threshold completion can finish the session.
+        decision = CompletionDecision(False, next_dimension=required_next.primary_dimension)
     question.confidence_after_json = _confidence_map(profile)
     snapshot = models.ProfileSnapshot(
         session_id=session.id,
@@ -749,20 +778,14 @@ def _process_response(
         summary_started = utc_now()
         try:
             analysis = ai_provider.summarize(summary_input)
-            for item in [
-                *analysis.cross_dimension_insights,
-                *analysis.tradeoffs,
-                *analysis.suggestions,
-            ]:
-                validate_summary(item)
-            analysis.overall_summary = validate_summary(analysis.overall_summary)
-            profile.written_summary = analysis.overall_summary
+            analysis.ideal_roommate = validate_summary(analysis.ideal_roommate)
+            profile.written_summary = analysis.ideal_roommate
             _record_ai_run(db, session, response, operation="summarize_profile", provider_name=ai_provider.name,
                            success=True, input_json=summary_input, output_json=analysis.model_dump(mode="json"),
                            fallback_used=ai_provider is fallback_provider, started_at=summary_started)
         except ProviderError as error:
             analysis = _deterministic_analysis(profile)
-            profile.written_summary = analysis.overall_summary
+            profile.written_summary = analysis.ideal_roommate
             _record_ai_run(db, session, response, operation="summarize_profile", provider_name=ai_provider.name,
                            success=False, input_json=summary_input, output_json=analysis.model_dump(mode="json"), error_category=error.category,
                            fallback_used=True, started_at=summary_started)
@@ -779,7 +802,11 @@ def _process_response(
         return
 
     session.status = "active"
-    next_question = question_bank.next_for_dimension(decision.next_dimension, asked)
+    next_question = required_next
+    if next_question is not None:
+        selection_reason = f"required_fixed:{next_question.id}"
+    else:
+        next_question = question_bank.next_for_dimension(decision.next_dimension, asked)
     if next_question is None:
         # A target can need more clarification than the two bank questions
         # assigned to it. Keep the interview moving with the first remaining
@@ -795,7 +822,7 @@ def _process_response(
         if next_question is None:
             raise HTTPException(status_code=503, detail="No safe fallback question is available")
         selection_reason = f"bank_exhausted_for_target:{decision.next_dimension}"
-    else:
+    elif required_next is None:
         selection_reason = _selection_reason(profile, decision.next_dimension)
     adaptation_input = {
         "target_dimension": decision.next_dimension,
@@ -805,7 +832,7 @@ def _process_response(
     displayed_text, source = next_question.prompt, "bank"
     if not ai_allowed:
         _record_privacy_withheld_run(db, session, response, operation="adapt_question")
-    elif fixed_extraction is not None:
+    elif next_question.id in REQUIRED_QUESTION_IDS or fixed_extraction is not None:
         # Known options use the curated bank wording and do not need a second
         # model call to rewrite a question.
         pass
