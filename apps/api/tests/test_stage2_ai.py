@@ -7,6 +7,8 @@ from uuid import uuid4
 import pytest
 
 from app.ai import (
+    AdaptiveBundle,
+    FallbackAdaptiveProvider,
     AdaptedQuestion,
     ExtractionDimension,
     ExtractionResult,
@@ -15,7 +17,12 @@ from app.ai import (
     SummaryResult,
     validate_summary,
 )
-from app.service import _apply_extraction, _extraction_answer_payload, _fixed_choice_extraction
+from app.service import (
+    _apply_extraction,
+    _extraction_answer_payload,
+    _fixed_choice_extraction,
+    _validate_adaptive_bundle,
+)
 from app import models
 from roomicheck.v2.models import ProfileV2
 
@@ -57,6 +64,25 @@ def test_extraction_maps_rubric_label_with_deterministic_math() -> None:
     assert state.evidence[0].excerpt == "I need quiet to study."
 
 
+def test_extraction_preserves_supported_subdimensions() -> None:
+    profile = ProfileV2.empty()
+    response, question = _response("I need quiet to study."), _question()
+    result = ExtractionResult(dimensions=[ExtractionDimension(
+        dimension="physical_environment", label="low", confidence="high",
+        weight=1.0, supporting_quote="I need quiet to study.", summary="Quiet matters.",
+        subdimensions=[{
+            "subdimension": "importance", "label": "very_high", "confidence": "high",
+            "weight": 1.0, "supporting_quote": "I need quiet to study.",
+            "summary": "Quiet is important for this participant.",
+        }],
+    )])
+    _apply_extraction(profile, response, question, result)
+    state = profile.dimensions["physical_environment"].subdimensions["importance"]
+    assert state.score == 90
+    assert state.label == "very_high"
+    assert state.evidence[0].excerpt == "I need quiet to study."
+
+
 def test_extraction_rejects_quote_not_present_in_sanitized_answer() -> None:
     profile = ProfileV2.empty()
     result = ExtractionResult(dimensions=[ExtractionDimension(
@@ -72,6 +98,16 @@ def test_summary_policy_rejects_judgmental_claims() -> None:
         validate_summary("This person would be a bad roommate.")
 
 
+def test_summary_policy_rejects_questionnaire_recap() -> None:
+    with pytest.raises(ProviderError, match="summary_policy_violation"):
+        validate_summary("Based on your answers to the questions, you prefer quiet rooms.")
+    with pytest.raises(ProviderError, match="summary_repeats_question"):
+        validate_summary(
+            "You would feel most at ease when your roommate starts watching videos out loud.",
+            ["You're trying to finish an important assignment when your roommate starts watching videos out loud. What would that be like for you?"],
+        )
+
+
 def test_extraction_rejects_unknown_contradiction_reference() -> None:
     profile = ProfileV2.empty()
     result = ExtractionResult(dimensions=[ExtractionDimension(
@@ -81,6 +117,26 @@ def test_extraction_rejects_unknown_contradiction_reference() -> None:
     )])
     with pytest.raises(ProviderError, match="invalid_contradiction_reference"):
         _apply_extraction(profile, _response("Real answer"), _question(), result)
+
+
+def test_contradictory_evidence_lowers_confidence_and_requires_clarification() -> None:
+    profile = ProfileV2.empty()
+    prior = _response("I prefer quiet.")
+    prior_question = _question()
+    _apply_extraction(profile, prior, prior_question, ExtractionResult(dimensions=[ExtractionDimension(
+        dimension="physical_environment", label="low", confidence="high",
+        supporting_quote="I prefer quiet.", summary="Quiet is preferred.",
+    )]))
+    current = _response("I prefer lively background noise.")
+    result = ExtractionResult(dimensions=[ExtractionDimension(
+        dimension="physical_environment", label="high", confidence="high",
+        supporting_quote="I prefer lively background noise.", summary="The answer conflicts with earlier evidence.",
+        contradiction_response_ids=[str(prior.id)],
+    )])
+    _apply_extraction(profile, current, prior_question, result)
+    state = profile.dimensions["physical_environment"]
+    assert state.confidence == 0.55
+    assert state.clarification_needed
 
 
 def test_openai_provider_classifies_rate_limit(monkeypatch) -> None:
@@ -167,6 +223,8 @@ def test_fallback_summary_describes_the_ideal_roommate_from_dimensions() -> None
 
     assert result.ideal_roommate
     assert "quiet" in result.ideal_roommate.lower()
+    assert "physical environment:" not in result.ideal_roommate.lower()
+    assert "question" not in result.ideal_roommate.lower()
 
 
 def test_privacy_withheld_extraction_does_not_add_evidence() -> None:
@@ -244,3 +302,19 @@ def test_ai_adapted_wording_keeps_source_bank_scoring() -> None:
         "physical_environment",
         "study_daily_routine",
     }
+
+
+def test_fallback_adaptive_bundle_has_multiple_hypotheses_and_cross_dimension_questions() -> None:
+    bundle = FallbackAdaptiveProvider().generate_adaptive_bundle({"round": 1, "seed_answer": "quiet"})
+    validated = _validate_adaptive_bundle(bundle, answered_texts=set())
+    assert isinstance(validated, AdaptiveBundle)
+    assert 2 <= len(validated.hypotheses) <= 3
+    assert all(2 <= len(item.questions) <= 3 for item in validated.hypotheses)
+    assert any(question.secondary_dimensions for item in validated.hypotheses for question in item.questions)
+
+
+def test_adaptive_bundle_rejects_duplicate_question_text() -> None:
+    bundle = FallbackAdaptiveProvider().generate_adaptive_bundle({"round": 1, "seed_answer": "quiet"})
+    duplicate_text = bundle.hypotheses[0].questions[0].text
+    with pytest.raises(ProviderError, match="duplicate_generated_question_text"):
+        _validate_adaptive_bundle(bundle, answered_texts={duplicate_text.casefold()})

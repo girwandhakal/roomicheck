@@ -14,8 +14,8 @@ import {
   submitAnswer,
 } from "@/lib/api";
 
-const SESSION_KEY = "roomicheck_session_id_v4";
-const LEGACY_SESSION_KEYS = ["roomicheck_session_id_v3", "roomicheck_session_id"];
+const SESSION_KEY = "roomicheck_session_id_v5";
+const LEGACY_SESSION_KEYS = ["roomicheck_session_id_v4", "roomicheck_session_id_v3", "roomicheck_session_id"];
 
 const DIMENSION_LABELS: Record<string, string> = {
   physical_environment: "Physical environment",
@@ -45,6 +45,7 @@ type ProfileDimension = {
   coverage: string;
   summary: string | null;
   unknowns: string[];
+  subdimensions: Record<string, { label: string | null; summary: string | null }>;
 };
 
 function preferenceLevel(value: string | null): string {
@@ -74,6 +75,15 @@ function profileDimensions(profile: Record<string, unknown> | null): Array<[stri
       coverage: typeof dimension?.coverage === "string" ? dimension.coverage : "unknown",
       summary: typeof dimension?.summary === "string" ? dimension.summary : null,
       unknowns: Array.isArray(dimension?.unknowns) ? dimension.unknowns.filter((value): value is string => typeof value === "string") : [],
+      subdimensions: typeof dimension?.subdimensions === "object" && dimension?.subdimensions !== null
+        ? Object.fromEntries(Object.entries(dimension.subdimensions as Record<string, unknown>).map(([key, value]) => {
+            const state = typeof value === "object" && value !== null ? value as Record<string, unknown> : {};
+            return [key, {
+              label: typeof state.label === "string" ? state.label : null,
+              summary: typeof state.summary === "string" ? state.summary : null,
+            }];
+          }))
+        : {},
     }] as [string, ProfileDimension];
   });
 }
@@ -92,7 +102,7 @@ export default function Home() {
 
   useEffect(() => {
     let cancelled = false;
-    // Do not restore sessions created before the v4 questionnaire/profile
+    // Do not restore sessions created before the v5 questionnaire/profile
     // contract. Those sessions can have questions that no longer exist.
     LEGACY_SESSION_KEYS.forEach((key) => window.localStorage.removeItem(key));
     const sessionId = window.localStorage.getItem(SESSION_KEY);
@@ -423,6 +433,20 @@ function CompletionView({ session, loading, onRestart, error }: { session: Quest
                   </div>
                   <div className="level-pill">{preferenceLevel(dimension.label)}</div>
                   {dimension.summary && <p>{dimension.summary}</p>}
+                  {Object.keys(dimension.subdimensions).length > 0 && (
+                    <dl className="subdimension-list">
+                      {(["actual_behavior", "personal_preference", "importance", "flexibility"] as const).map((key) => {
+                        const subdimension = dimension.subdimensions[key];
+                        if (!subdimension?.label && !subdimension?.summary) return null;
+                        return (
+                          <div key={key}>
+                            <dt>{key.replaceAll("_", " ")}</dt>
+                            <dd>{subdimension.label ?? subdimension.summary}</dd>
+                          </div>
+                        );
+                      })}
+                    </dl>
+                  )}
                   {dimension.unknowns?.length > 0 && <p className="uncertainty">Open question: {dimension.unknowns[0]}</p>}
                 </article>
               ))}

@@ -1,6 +1,6 @@
 {
-  "version": "v4",
-  "profile_schema": "co_living_profile.v4",
+  "version": "v5",
+  "profile_schema": "co_living_profile.v5",
   "dimensions": [
     {
       "id": "physical_environment",

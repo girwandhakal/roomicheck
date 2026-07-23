@@ -10,9 +10,16 @@ from typing import Any
 ROOT_DIR = Path(__file__).resolve().parents[2]
 QUESTIONNAIRE_DIR = ROOT_DIR / "questionnaire"
 
-PROFILE_SCHEMA_VERSION = "co_living_profile.v4"
-QUESTIONNAIRE_VERSION = "adaptive_demo.v4"
-DIMENSION_DEFINITION_VERSION = "v4"
+PROFILE_SCHEMA_VERSION = "co_living_profile.v5"
+QUESTIONNAIRE_VERSION = "adaptive_demo.v5"
+DIMENSION_DEFINITION_VERSION = "v5"
+
+SUBDIMENSION_IDS = (
+    "actual_behavior",
+    "personal_preference",
+    "importance",
+    "flexibility",
+)
 
 # These fixed questions are inserted before adaptive follow-ups for every
 # questionnaire session. Keep the order stable because it is part of the

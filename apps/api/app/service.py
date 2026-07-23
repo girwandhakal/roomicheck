@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import re
+from copy import deepcopy
 from datetime import datetime, timedelta, timezone
 from typing import Any
 from uuid import UUID, uuid4
@@ -16,6 +17,7 @@ from roomicheck.v2.config import (
     PROFILE_SCHEMA_VERSION,
     QUESTIONNAIRE_VERSION,
     REQUIRED_QUESTION_IDS,
+    SUBDIMENSION_IDS,
 )
 from roomicheck.v2.controller import (
     AdaptiveController,
@@ -30,9 +32,10 @@ from roomicheck.v2.models import (
     EvidenceReference,
     ProfileStatus,
     ProfileV2,
+    SubdimensionState,
     Contradiction,
 )
-from roomicheck.v2.questions import QuestionDefinition, load_question_bank
+from roomicheck.v2.questions import QuestionDefinition, QuestionOption, QuestionType, load_question_bank
 from roomicheck.v2.fixed_scoring import fixed_option_effects, fixed_scale_effects
 
 from . import models
@@ -44,13 +47,22 @@ from .ai import (
     OpenAIAdaptiveProvider,
     ExtractionDimension,
     ExtractionResult,
+    SubdimensionExtraction,
+    AdaptiveBundle,
+    AdaptiveHypothesis,
+    AdaptiveQuestion,
     ProviderError,
     SummaryResult,
     allowed_dimensions,
     validate_summary,
 )
 from .config import get_settings
-from .prompts import ADAPT_PROMPT_VERSION, EXTRACT_PROMPT_VERSION, SUMMARY_PROMPT_VERSION
+from .prompts import (
+    ADAPT_PROMPT_VERSION,
+    ADAPTIVE_BUNDLE_PROMPT_VERSION,
+    EXTRACT_PROMPT_VERSION,
+    SUMMARY_PROMPT_VERSION,
+)
 from .schemas import AnswerSubmission, ProgressOut, QuestionOut, SessionOut
 
 
@@ -151,6 +163,7 @@ def _present_question(
     *,
     displayed_text: str | None = None,
     source: str = "bank",
+    adaptive_metadata: dict[str, Any] | None = None,
 ) -> models.SessionQuestion:
     presented = models.SessionQuestion(
         session_id=session.id,
@@ -166,10 +179,52 @@ def _present_question(
         selection_reason=reason,
         source=source,
         confidence_before_json=_confidence_map(profile),
+        adaptive_metadata_json=adaptive_metadata,
     )
     db.add(presented)
     db.flush()
     return presented
+
+
+def _present_adaptive_question(
+    db: Session,
+    session: models.QuestionnaireSession,
+    profile: ProfileV2,
+    question: AdaptiveQuestion,
+    hypothesis: AdaptiveHypothesis,
+    *,
+    source_question_id: str,
+) -> models.SessionQuestion:
+    return _present_question(
+        db,
+        session,
+        QuestionDefinition(
+            id=source_question_id,
+            version=QUESTIONNAIRE_VERSION,
+            prompt=question.text,
+            question_type=QuestionType(question.question_type),
+            primary_dimension=question.primary_dimension,
+            secondary_dimensions=tuple(question.secondary_dimensions),
+            options=tuple(QuestionOption(item.id, item.label) for item in question.options),
+            scale_min=None,
+            scale_max=None,
+            is_seed=False,
+            active=True,
+        ),
+        profile,
+        f"adaptive_hypothesis:{hypothesis.id}",
+        displayed_text=question.text,
+        source="ai_generated",
+        adaptive_metadata={
+            "question_id": question.id,
+            "hypothesis_id": hypothesis.id,
+            "hypothesis_statement": hypothesis.statement,
+            "target_subdimensions": question.target_subdimensions,
+            "rationale": question.rationale,
+            "evidence_gap": question.evidence_gap,
+            "round": session.adaptive_round,
+        },
+    )
 
 
 def _latest_profile(db: Session, session: models.QuestionnaireSession) -> ProfileV2:
@@ -179,7 +234,29 @@ def _latest_profile(db: Session, session: models.QuestionnaireSession) -> Profil
         .order_by(models.ProfileSnapshot.version.desc())
         .limit(1)
     )
-    return ProfileV2.from_dict(snapshot.profile_json) if snapshot else ProfileV2.empty(str(session.id))
+    if snapshot is None:
+        return ProfileV2.empty(str(session.id))
+    return ProfileV2.from_dict(_migrate_profile_payload(snapshot.profile_json))
+
+
+def _migrate_profile_payload(payload: dict[str, Any]) -> dict[str, Any]:
+    """Make v4/v3 snapshots readable after adding explicit subdimensions."""
+    migrated = deepcopy(payload)
+    dimensions = migrated.get("dimensions", {})
+    if "noise_environment" in dimensions and "physical_environment" not in dimensions:
+        dimensions["physical_environment"] = dimensions.pop("noise_environment")
+    for dimension in dimensions.values():
+        if not isinstance(dimension, dict):
+            continue
+        dimension.setdefault(
+            "subdimensions",
+            {
+                key: {"score": None, "label": None, "confidence": 0.0, "summary": None, "evidence": []}
+                for key in SUBDIMENSION_IDS
+            },
+        )
+    migrated["schema_version"] = PROFILE_SCHEMA_VERSION
+    return migrated
 
 
 def _current_question(db: Session, session_id: UUID) -> models.SessionQuestion | None:
@@ -409,6 +486,7 @@ def _record_ai_run(
     prompt_versions = {
         "extract_response": EXTRACT_PROMPT_VERSION,
         "adapt_question": ADAPT_PROMPT_VERSION,
+        "adaptive_bundle": ADAPTIVE_BUNDLE_PROMPT_VERSION,
         "summarize_profile": SUMMARY_PROMPT_VERSION,
         "fixed_choice_score": "co_living_scoring.v3",
     }
@@ -428,6 +506,163 @@ def _record_ai_run(
         fallback_used=fallback_used,
         completed_at=now,
     ))
+
+
+def _adaptive_context(
+    db: Session,
+    session: models.QuestionnaireSession,
+    profile: ProfileV2,
+    triggering_response: models.QuestionnaireResponse,
+) -> dict[str, Any]:
+    responses = list(db.scalars(
+        select(models.QuestionnaireResponse)
+        .where(models.QuestionnaireResponse.session_id == session.id)
+        .order_by(models.QuestionnaireResponse.submitted_at)
+    ))
+    questions = {
+        item.id: item for item in db.scalars(
+            select(models.SessionQuestion).where(models.SessionQuestion.session_id == session.id)
+        )
+    }
+    return {
+        "questionnaire_version": QUESTIONNAIRE_VERSION,
+        "profile_schema_version": PROFILE_SCHEMA_VERSION,
+        "round": session.adaptive_round + 1,
+        "seed_answer": triggering_response.sanitized_model_input,
+        "response_ids": [str(item.id) for item in responses],
+        "responses": [
+            {
+                "response_id": str(item.id),
+                "question_id": questions[item.session_question_id].question_id,
+                "question": questions[item.session_question_id].exact_question_text,
+                "answer": item.sanitized_model_input,
+            }
+            for item in responses
+            if item.session_question_id in questions
+        ],
+        "profile": profile.to_dict(),
+        "dimensions": list(DIMENSION_IDS),
+        "subdimensions": list(SUBDIMENSION_IDS),
+    }
+
+
+def _validate_adaptive_bundle(bundle: AdaptiveBundle, *, answered_texts: set[str]) -> AdaptiveBundle:
+    if not 2 <= len(bundle.hypotheses) <= 3:
+        raise ProviderError("invalid_hypothesis_count")
+    hypothesis_ids: set[str] = set()
+    question_ids: set[str] = set()
+    for hypothesis in bundle.hypotheses:
+        if hypothesis.id in hypothesis_ids:
+            raise ProviderError("duplicate_hypothesis_id")
+        hypothesis_ids.add(hypothesis.id)
+        if not 2 <= len(hypothesis.questions) <= 3:
+            raise ProviderError("invalid_questions_per_hypothesis")
+        for question in hypothesis.questions:
+            if question.id in question_ids:
+                raise ProviderError("duplicate_generated_question_id")
+            question_ids.add(question.id)
+            if _question_text_key(question.text) in answered_texts:
+                raise ProviderError("duplicate_generated_question_text")
+            if question.primary_dimension not in DIMENSION_IDS:
+                raise ProviderError("invalid_generated_dimension")
+            if question.primary_dimension in question.secondary_dimensions:
+                raise ProviderError("repeated_generated_dimension")
+            if len(set(question.secondary_dimensions)) != len(question.secondary_dimensions):
+                raise ProviderError("duplicate_generated_dimension")
+            if any(item not in DIMENSION_IDS for item in question.secondary_dimensions):
+                raise ProviderError("invalid_generated_secondary_dimension")
+            if question.question_type == "single_choice":
+                if not 2 <= len(question.options) <= 5:
+                    raise ProviderError("invalid_generated_options")
+                if len({item.id for item in question.options}) != len(question.options):
+                    raise ProviderError("duplicate_generated_option")
+                if not any(item.id == "other" for item in question.options):
+                    raise ProviderError("missing_generated_other_option")
+            elif question.options:
+                raise ProviderError("unexpected_generated_options")
+            if not question.target_subdimensions:
+                raise ProviderError("missing_generated_subdimension_target")
+            valid, _ = privacy.validate_generated_question(question.text)
+            if not valid:
+                raise ProviderError("generated_question_policy_violation")
+    return bundle
+
+
+def _generate_adaptive_bundle(
+    db: Session,
+    session: models.QuestionnaireSession,
+    profile: ProfileV2,
+    response: models.QuestionnaireResponse,
+) -> AdaptiveBundle:
+    answered_texts = {
+        _question_text_key(item.exact_question_text)
+        for item in db.scalars(
+            select(models.SessionQuestion).where(models.SessionQuestion.session_id == session.id)
+        )
+    }
+    payload = _adaptive_context(db, session, profile, response)
+    provider = ai_provider if response.sanitized_model_input else fallback_provider
+    generate_bundle = getattr(provider, "generate_adaptive_bundle", None)
+    if not callable(generate_bundle):
+        provider = fallback_provider
+        generate_bundle = fallback_provider.generate_adaptive_bundle
+    started = utc_now()
+    try:
+        bundle = generate_bundle(payload)
+        _validate_adaptive_bundle(bundle, answered_texts=answered_texts)
+    except (ProviderError, ValueError) as error:
+        if provider is not fallback_provider:
+            _record_ai_run(
+                db, session, response, operation="adaptive_bundle", provider_name=provider.name,
+                success=False, input_json=payload, error_category=getattr(error, "category", "invalid_bundle"),
+                fallback_used=False, started_at=started,
+            )
+        bundle = fallback_provider.generate_adaptive_bundle(payload)
+        _validate_adaptive_bundle(bundle, answered_texts=answered_texts)
+        provider = fallback_provider
+        fallback_used = True
+    else:
+        fallback_used = provider is fallback_provider
+    _record_ai_run(
+        db, session, response, operation="adaptive_bundle", provider_name=provider.name,
+        success=True, input_json=payload, output_json=bundle.model_dump(mode="json"),
+        fallback_used=fallback_used, started_at=started,
+    )
+    session.adaptive_round += 1
+    session.active_adaptive_bundle_json = bundle.model_dump(mode="json")
+    return bundle
+
+
+def _next_adaptive_question(
+    db: Session,
+    session: models.QuestionnaireSession,
+    profile: ProfileV2,
+) -> models.SessionQuestion | None:
+    bundle = session.active_adaptive_bundle_json
+    if not isinstance(bundle, dict):
+        return None
+    answered_generated_ids = {
+        item.adaptive_metadata_json.get("question_id")
+        for item in db.scalars(
+            select(models.SessionQuestion).where(
+                models.SessionQuestion.session_id == session.id,
+                models.SessionQuestion.source == "ai_generated",
+                models.SessionQuestion.answered_at.is_not(None),
+            )
+        )
+        if isinstance(item.adaptive_metadata_json, dict)
+    }
+    hypotheses = [AdaptiveHypothesis.model_validate(item) for item in bundle.get("hypotheses", [])]
+    for hypothesis in sorted(hypotheses, key=lambda item: (item.priority, item.id)):
+        for generated in hypothesis.questions:
+            if generated.id in answered_generated_ids:
+                continue
+            source_question_id = question_bank.seed.id
+            candidate = _present_adaptive_question(
+                db, session, profile, generated, hypothesis, source_question_id=source_question_id,
+            )
+            return candidate
+    return None
 
 
 def _apply_extraction(
@@ -466,17 +701,52 @@ def _apply_extraction(
         target_score = item._score_override if item._score_override is not None else LABEL_TO_SCORE[item.label]
         old_score = prior.score if prior.score is not None else target_score
         score = round((old_score * (1 - weight)) + (target_score * weight))
+        subdimensions = {key: value for key, value in prior.subdimensions.items()}
+        seen_subdimensions: set[str] = set()
+        for subdimension_item in item.subdimensions:
+            if subdimension_item.subdimension not in SUBDIMENSION_IDS or subdimension_item.subdimension in seen_subdimensions:
+                raise ProviderError("invalid_subdimension")
+            if subdimension_item.supporting_quote not in answer:
+                raise ProviderError("invalid_subdimension_evidence_quote")
+            seen_subdimensions.add(subdimension_item.subdimension)
+            prior_subdimension = subdimensions[subdimension_item.subdimension]
+            subdimension_evidence = list(prior_subdimension.evidence)
+            subdimension_evidence.append(
+                EvidenceReference(str(response.id), EvidenceKind.DIRECT, subdimension_item.supporting_quote)
+            )
+            subdimension_weight = max(0.2, min(1.0, subdimension_item.weight))
+            subdimension_target = LABEL_TO_SCORE[subdimension_item.label]
+            subdimension_old = (
+                prior_subdimension.score
+                if prior_subdimension.score is not None
+                else subdimension_target
+            )
+            subdimensions[subdimension_item.subdimension] = SubdimensionState(
+                score=round((subdimension_old * (1 - subdimension_weight)) + (subdimension_target * subdimension_weight)),
+                label=subdimension_item.label,
+                confidence=max(
+                    prior_subdimension.confidence,
+                    CONFIDENCE_TO_SCORE[subdimension_item.confidence],
+                ),
+                summary=subdimension_item.summary,
+                evidence=subdimension_evidence,
+            )
         profile.dimensions[item.dimension] = DimensionState(
             score=score,
             label=item.label,
-            confidence=max(prior.confidence, CONFIDENCE_TO_SCORE[item.confidence]),
+            confidence=(
+                min(max(prior.confidence, CONFIDENCE_TO_SCORE[item.confidence]), 0.55)
+                if item.contradiction_response_ids
+                else max(prior.confidence, CONFIDENCE_TO_SCORE[item.confidence])
+            ),
             coverage=CoverageStatus.PARTIAL,
             summary=item.summary,
             evidence=evidence,
             unknowns=list(dict.fromkeys(item.unknowns))[:4],
-            clarification_needed=item.clarification_needed,
+            clarification_needed=item.clarification_needed or bool(item.contradiction_response_ids),
             preference_strength_known=item.preference_strength_known,
             scenario_evidence=item.scenario_evidence,
+            subdimensions=subdimensions,
         )
         if item.contradiction_response_ids:
             profile.contradictions.append(Contradiction(
@@ -603,6 +873,14 @@ def _fixed_choice_extraction(
             scenario_evidence=True,
         )
         item._score_override = effect.score
+        item.subdimensions = [SubdimensionExtraction(
+            subdimension="personal_preference",
+            label=effect.label,
+            confidence="high" if effect.confidence >= 0.85 else "moderate" if effect.confidence >= 0.7 else "low",
+            weight=1.0,
+            supporting_quote=response.sanitized_model_input,
+            summary=effect.summary,
+        )]
         dimensions.append(item)
     return ExtractionResult(dimensions=dimensions)
 
@@ -611,6 +889,8 @@ def _fixed_answer_extraction(
     question: models.SessionQuestion,
     response: models.QuestionnaireResponse,
 ) -> ExtractionResult | None:
+    if question.source == "ai_generated":
+        return None
     if question.question_type == "single_choice":
         return _fixed_choice_extraction(question, response)
     if question.question_type != "scale":
@@ -661,6 +941,11 @@ def _process_response(
         "question_type": question.question_type,
         "target_dimension": question.primary_dimension,
         "secondary_dimensions": question.secondary_dimensions,
+        "adaptive_metadata": question.adaptive_metadata_json,
+        "target_subdimensions": (
+            question.adaptive_metadata_json.get("target_subdimensions", [])
+            if isinstance(question.adaptive_metadata_json, dict) else []
+        ),
         "evidence_type": "scenario_response" if question.question_type == "scenario" else question.question_type,
         "answer": _extraction_answer_payload(question, response),
         "options": question.options_json if question.question_type == "single_choice" else [],
@@ -767,18 +1052,78 @@ def _process_response(
     db.add(snapshot)
     db.add(models.AnalyticsEvent(
         session_id=session.id,
-        event_name="seed_submitted" if question.question_id == question_bank.seed.id else "answer_submitted",
+        event_name=(
+            "seed_submitted"
+            if question.question_id == question_bank.seed.id and question.source != "ai_generated"
+            else "answer_submitted"
+        ),
     ))
+
+    adaptive_next: tuple[AdaptiveQuestion, AdaptiveHypothesis] | None = None
+    if question.question_id == question_bank.seed.id and question.source != "ai_generated":
+        bundle = _generate_adaptive_bundle(db, session, profile, response)
+        first_hypothesis = min(bundle.hypotheses, key=lambda item: (item.priority, item.id))
+        adaptive_next = (first_hypothesis.questions[0], first_hypothesis)
+    elif question.source == "ai_generated":
+        bundle = session.active_adaptive_bundle_json
+        if isinstance(bundle, dict):
+            parsed = AdaptiveBundle.model_validate(bundle)
+            for hypothesis in sorted(parsed.hypotheses, key=lambda item: (item.priority, item.id)):
+                answered_ids = {
+                    item.adaptive_metadata_json.get("question_id")
+                    for item in db.scalars(
+                        select(models.SessionQuestion).where(
+                            models.SessionQuestion.session_id == session.id,
+                            models.SessionQuestion.source == "ai_generated",
+                            models.SessionQuestion.answered_at.is_not(None),
+                        )
+                    )
+                    if isinstance(item.adaptive_metadata_json, dict)
+                }
+                for generated in hypothesis.questions:
+                    if generated.id not in answered_ids:
+                        adaptive_next = (generated, hypothesis)
+                        break
+                if adaptive_next:
+                    break
+        if adaptive_next is None and profile.question_count < MAXIMUM_QUESTION_COUNT:
+            session.active_adaptive_bundle_json = None
+            bundle = _generate_adaptive_bundle(db, session, profile, response)
+            first_hypothesis = min(bundle.hypotheses, key=lambda item: (item.priority, item.id))
+            adaptive_next = (first_hypothesis.questions[0], first_hypothesis)
+
+    if adaptive_next is not None and profile.question_count < MAXIMUM_QUESTION_COUNT:
+        session.status = "active"
+        generated, hypothesis = adaptive_next
+        _present_adaptive_question(
+            db,
+            session,
+            profile,
+            generated,
+            hypothesis,
+            source_question_id=question_bank.seed.id,
+        )
+        return
 
     if decision.complete:
         summary_input = {
             "dimensions": {key: value.to_dict() for key, value in profile.dimensions.items()},
             "contradictions": [item.to_dict() for item in profile.contradictions],
+            "question_texts": [
+                item.exact_question_text for item in db.scalars(
+                    select(models.SessionQuestion).where(
+                        models.SessionQuestion.session_id == session.id
+                    )
+                )
+            ],
         }
         summary_started = utc_now()
         try:
             analysis = ai_provider.summarize(summary_input)
-            analysis.ideal_roommate = validate_summary(analysis.ideal_roommate)
+            analysis.ideal_roommate = validate_summary(
+                analysis.ideal_roommate,
+                summary_input["question_texts"],
+            )
             profile.written_summary = analysis.ideal_roommate
             _record_ai_run(db, session, response, operation="summarize_profile", provider_name=ai_provider.name,
                            success=True, input_json=summary_input, output_json=analysis.model_dump(mode="json"),

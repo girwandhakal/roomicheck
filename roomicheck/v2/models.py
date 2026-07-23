@@ -6,7 +6,7 @@ from enum import StrEnum
 from typing import Any
 from uuid import UUID, uuid4
 
-from .config import DIMENSION_IDS, PROFILE_SCHEMA_VERSION
+from .config import DIMENSION_IDS, PROFILE_SCHEMA_VERSION, SUBDIMENSION_IDS
 
 
 class CoverageStatus(StrEnum):
@@ -105,6 +105,61 @@ class EvidenceReference:
 
 
 @dataclass
+class SubdimensionState:
+    """Evidence-backed state for one lens on a co-living dimension."""
+
+    score: int | None = None
+    label: str | None = None
+    confidence: float = 0.0
+    summary: str | None = None
+    evidence: list[EvidenceReference] = field(default_factory=list)
+
+    def validate(self) -> None:
+        if self.score is not None and (not _is_int(self.score) or not 0 <= self.score <= 100):
+            raise ValueError("subdimension score must be null or an integer from 0 through 100")
+        if not _is_number(self.confidence) or not 0.0 <= float(self.confidence) <= 1.0:
+            raise ValueError("subdimension confidence must be from 0 through 1")
+        for field_name in ("label", "summary"):
+            value = getattr(self, field_name)
+            if value is not None and (not isinstance(value, str) or not value.strip()):
+                raise ValueError(f"subdimension {field_name} must be null or non-empty")
+        for item in self.evidence:
+            if not isinstance(item, EvidenceReference):
+                raise ValueError("subdimension evidence contains an invalid item")
+            item.validate()
+        if (self.score is not None or self.label is not None or self.summary is not None) and not self.evidence:
+            raise ValueError("subdimension claims require evidence")
+
+    @classmethod
+    def from_dict(cls, payload: dict[str, Any]) -> SubdimensionState:
+        if not isinstance(payload, dict):
+            raise ValueError("subdimension must be an object")
+        expected = {"score", "label", "confidence", "summary", "evidence"}
+        _require_exact_keys(payload, expected, "subdimension")
+        evidence_payload = payload["evidence"]
+        if not isinstance(evidence_payload, list):
+            raise ValueError("subdimension.evidence must be a list")
+        state = cls(
+            score=payload["score"],
+            label=payload["label"],
+            confidence=payload["confidence"],
+            summary=payload["summary"],
+            evidence=[EvidenceReference.from_dict(item) for item in evidence_payload],
+        )
+        state.validate()
+        return state
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "score": self.score,
+            "label": self.label,
+            "confidence": float(self.confidence),
+            "summary": self.summary,
+            "evidence": [item.to_dict() for item in self.evidence],
+        }
+
+
+@dataclass
 class DimensionState:
     score: int | None = None
     label: str | None = None
@@ -116,6 +171,9 @@ class DimensionState:
     clarification_needed: bool = False
     preference_strength_known: bool = False
     scenario_evidence: bool = False
+    subdimensions: dict[str, SubdimensionState] = field(
+        default_factory=lambda: {key: SubdimensionState() for key in SUBDIMENSION_IDS}
+    )
 
     @property
     def has_direct_evidence(self) -> bool:
@@ -128,6 +186,12 @@ class DimensionState:
             raise ValueError("dimension confidence must be from 0 through 1")
         if not isinstance(self.coverage, CoverageStatus):
             raise ValueError("dimension coverage is invalid")
+        if set(self.subdimensions) != set(SUBDIMENSION_IDS):
+            raise ValueError("dimension subdimensions must exactly match the canonical subdimension IDs")
+        for key, subdimension in self.subdimensions.items():
+            if not isinstance(subdimension, SubdimensionState):
+                raise ValueError(f"dimension subdimension {key} is invalid")
+            subdimension.validate()
         for field_name in ("label", "summary"):
             value = getattr(self, field_name)
             if value is not None and (not isinstance(value, str) or not value.strip()):
@@ -172,6 +236,7 @@ class DimensionState:
             "clarification_needed",
             "preference_strength_known",
             "scenario_evidence",
+            "subdimensions",
         }
         _require_exact_keys(payload, expected, "dimension")
         try:
@@ -192,6 +257,10 @@ class DimensionState:
             clarification_needed=payload["clarification_needed"],
             preference_strength_known=payload["preference_strength_known"],
             scenario_evidence=payload["scenario_evidence"],
+            subdimensions={
+                key: SubdimensionState.from_dict(payload["subdimensions"][key])
+                for key in SUBDIMENSION_IDS
+            },
         )
         dimension.validate()
         return dimension
@@ -208,6 +277,9 @@ class DimensionState:
             "clarification_needed": self.clarification_needed,
             "preference_strength_known": self.preference_strength_known,
             "scenario_evidence": self.scenario_evidence,
+            "subdimensions": {
+                key: value.to_dict() for key, value in self.subdimensions.items()
+            },
         }
 
 
@@ -298,6 +370,8 @@ class ProfileV2:
                 raise ValueError("profile contains an invalid dimension state")
             dimension.validate()
             referenced_response_ids.update(item.response_id for item in dimension.evidence)
+            for subdimension in dimension.subdimensions.values():
+                referenced_response_ids.update(item.response_id for item in subdimension.evidence)
         contradiction_ids: set[str] = set()
         for contradiction in self.contradictions:
             if not isinstance(contradiction, Contradiction):
@@ -438,6 +512,7 @@ PROFILE_JSON_SCHEMA: dict[str, Any] = {
                 "clarification_needed",
                 "preference_strength_known",
                 "scenario_evidence",
+                "subdimensions",
             ],
             "properties": {
                 "score": {"type": ["integer", "null"], "minimum": 0, "maximum": 100},
@@ -450,6 +525,26 @@ PROFILE_JSON_SCHEMA: dict[str, Any] = {
                 "clarification_needed": {"type": "boolean"},
                 "preference_strength_known": {"type": "boolean"},
                 "scenario_evidence": {"type": "boolean"},
+                "subdimensions": {
+                    "type": "object",
+                    "additionalProperties": False,
+                    "required": list(SUBDIMENSION_IDS),
+                    "properties": {
+                        key: {"$ref": "#/$defs/subdimension"} for key in SUBDIMENSION_IDS
+                    },
+                },
+            },
+        },
+        "subdimension": {
+            "type": "object",
+            "additionalProperties": False,
+            "required": ["score", "label", "confidence", "summary", "evidence"],
+            "properties": {
+                "score": {"type": ["integer", "null"], "minimum": 0, "maximum": 100},
+                "label": {"type": ["string", "null"], "minLength": 1},
+                "confidence": {"type": "number", "minimum": 0, "maximum": 1},
+                "summary": {"type": ["string", "null"], "minLength": 1},
+                "evidence": {"type": "array", "items": {"$ref": "#/$defs/evidence"}},
             },
         },
         "contradiction": {

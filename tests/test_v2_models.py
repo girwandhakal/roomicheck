@@ -66,6 +66,10 @@ class V2ProfileModelTests(unittest.TestCase):
         self.assertEqual(parsed.schema_version, PROFILE_SCHEMA_VERSION)
         self.assertEqual(tuple(parsed.dimensions), DIMENSION_IDS)
         self.assertEqual(parsed.to_dict(), payload)
+        self.assertEqual(
+            set(parsed.dimensions["physical_environment"].subdimensions),
+            {"actual_behavior", "personal_preference", "importance", "flexibility"},
+        )
 
     def test_parser_rejects_additional_profile_fields(self) -> None:
         payload = ProfileV2.empty().to_dict()

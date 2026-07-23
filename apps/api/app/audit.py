@@ -116,6 +116,7 @@ def get_internal_session(db: Session, session_id: UUID) -> InternalSessionOut:
             target_dimension=question.primary_dimension,
             selection_reason=question.selection_reason,
             source=question.source,
+            adaptive_metadata=question.adaptive_metadata_json,
         ))
         if response is not None:
             timeline.append(_timeline_entry(
@@ -207,6 +208,7 @@ def get_internal_session(db: Session, session_id: UUID) -> InternalSessionOut:
             response_time_seconds=item.response_time_seconds,
             confidence_before=item.confidence_before_json,
             confidence_after=item.confidence_after_json,
+            adaptive_metadata=item.adaptive_metadata_json,
         ) for item in questions],
         responses=[InternalResponseOut(
             id=item.id,

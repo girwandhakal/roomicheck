@@ -1,0 +1,4 @@
+interface:
+  display_name: "Adaptive Question Generation"
+  short_description: "Generate cross-dimension adaptive follow-ups"
+  default_prompt: "Use $adaptive-question-generation to design or run an adaptive questionnaire round from current responses."

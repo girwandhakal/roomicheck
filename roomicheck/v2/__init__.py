@@ -4,7 +4,7 @@ This package intentionally does not replace the v1 CLI models. Stage 0 builds
 the Demo Day domain foundation alongside the existing prototype.
 """
 
-from .config import DIMENSION_IDS, PROFILE_SCHEMA_VERSION, QUESTIONNAIRE_VERSION, REQUIRED_QUESTION_IDS
+from .config import DIMENSION_IDS, PROFILE_SCHEMA_VERSION, QUESTIONNAIRE_VERSION, REQUIRED_QUESTION_IDS, SUBDIMENSION_IDS
 from .controller import AdaptiveController, CompletionDecision
 from .models import (
     Contradiction,
@@ -14,6 +14,7 @@ from .models import (
     EvidenceReference,
     ProfileStatus,
     ProfileV2,
+    SubdimensionState,
 )
 
 __all__ = [
@@ -30,4 +31,6 @@ __all__ = [
     "ProfileV2",
     "QUESTIONNAIRE_VERSION",
     "REQUIRED_QUESTION_IDS",
+    "SUBDIMENSION_IDS",
+    "SubdimensionState",
 ]

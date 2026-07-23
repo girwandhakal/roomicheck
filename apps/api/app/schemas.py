@@ -117,6 +117,7 @@ class InternalQuestionOut(StrictModel):
     response_time_seconds: float | None
     confidence_before: dict[str, float]
     confidence_after: dict[str, float] | None
+    adaptive_metadata: dict[str, Any] | None
 
 
 class InternalResponseOut(StrictModel):

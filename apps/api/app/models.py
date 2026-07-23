@@ -58,6 +58,8 @@ class QuestionnaireSession(TimestampMixin, Base):
     final_profile_json: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
     final_summary: Mapped[str | None] = mapped_column(Text)
     final_analysis_json: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
+    adaptive_round: Mapped[int] = mapped_column(Integer, default=0)
+    active_adaptive_bundle_json: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
     total_questions: Mapped[int] = mapped_column(Integer, default=0)
     session_duration_seconds: Mapped[int | None] = mapped_column(Integer)
     error_occurred: Mapped[bool] = mapped_column(Boolean, default=False)
@@ -116,6 +118,7 @@ class SessionQuestion(Base):
     response_time_seconds: Mapped[float | None] = mapped_column(Float)
     confidence_before_json: Mapped[dict[str, float]] = mapped_column(JSONB, default=dict)
     confidence_after_json: Mapped[dict[str, float] | None] = mapped_column(JSONB)
+    adaptive_metadata_json: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
 
 
